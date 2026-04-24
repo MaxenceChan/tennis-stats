@@ -1,0 +1,169 @@
+:root {
+  --bg: #0e1117;
+  --panel: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #2f81f7;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 700; font-size: 1.1rem; color: var(--text); }
+.nav { display: flex; gap: 1rem; align-items: center; }
+.nav a, .dropdown-trigger {
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  border-radius: 6px;
+}
+.nav a.active, .nav a:hover, .dropdown-trigger:hover {
+  background: rgba(255,255,255,0.06);
+  text-decoration: none;
+}
+
+.dropdown { position: relative; }
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+.dropdown-menu a {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0;
+}
+
+.container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+
+.hero h1 { font-size: 2rem; margin: 0 0 0.5rem; }
+.hero .lead { color: var(--muted); max-width: 60ch; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.card {
+  display: block;
+  padding: 1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+}
+.card:hover { border-color: var(--accent); text-decoration: none; }
+.card h3 { margin: 0 0 0.25rem; }
+.card p { margin: 0; color: var(--muted); }
+
+.toolbar { display: flex; gap: 1rem; align-items: center; margin: 1rem 0; }
+.toolbar input, .toolbar select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.search {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+}
+.search-results { list-style: none; padding: 0; margin-top: 1rem; }
+.search-results li a {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.search-results .rank { color: var(--muted); }
+.search-results .meta { color: var(--muted); text-align: right; }
+.search-results li a:hover { background: rgba(255,255,255,0.04); text-decoration: none; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+.data-table th, .data-table td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+.data-table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+.data-table .num { text-align: right; }
+.data-table .empty { text-align: center; color: var(--muted); padding: 1.5rem 0; }
+.data-table .win { color: var(--green); font-weight: 600; }
+.data-table .loss { color: var(--red); font-weight: 600; }
+
+.player-header {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+.player-meta { display: flex; flex-wrap: wrap; gap: 1.25rem; color: var(--muted); margin-top: 0.25rem; }
+.player-meta strong { color: var(--text); }
+.player-links { margin-top: 0.5rem; display: flex; gap: 0.75rem; }
+
+.tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+.tabs button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+  font: inherit;
+  border-bottom: 2px solid transparent;
+}
+.tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
+.tabs button:hover { color: var(--text); }
+
+.error {
+  color: var(--red);
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  padding: 0.75rem;
+  border-radius: 6px;
+}
