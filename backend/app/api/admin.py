@@ -1,11 +1,16 @@
-"""Endpoints d'administration : déclenche manuellement les pipelines."""
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+"""Endpoints d'administration : déclenche manuellement les pipelines.
+
+Tous les endpoints requièrent un bearer token (`Authorization: Bearer <ADMIN_TOKEN>`)
+si la variable d'env `ADMIN_TOKEN` est définie. En dev, laissez-la vide.
+"""
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
+from app.api._auth import require_admin
 from app.database import SessionLocal, get_db
 from app.services import elo, ingest
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
 def _run_in_session(coro_factory):

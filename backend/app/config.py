@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     rankings_cron: str = "0 6 * * *"
     matches_cron: str = "30 6 * * *"
 
+    admin_token: str = ""  # vide = endpoints admin ouverts (dev). Définir en prod.
+
     @property
     def cors_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

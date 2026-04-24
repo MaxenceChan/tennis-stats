@@ -84,6 +84,51 @@ Lancez-le au besoin, ou laissez le scheduler tourner en fond.
 
 Voir `/docs` (OpenAPI) pour la liste exhaustive.
 
+## Déploiement en ligne (Render.com — gratuit)
+
+Tout est décrit dans [`render.yaml`](render.yaml) : Postgres + API FastAPI + frontend
+statique + 2 cron jobs (rankings toutes les 30 min, refresh complet quotidien).
+
+### Étape 1 — Créer le compte Render
+- https://render.com → **Sign up with GitHub**.
+- Autorise Render à lire ton repo `tennis-stats`.
+
+### Étape 2 — Déployer le blueprint
+- Dans Render, clique **New → Blueprint**.
+- Sélectionne le repo `MaxenceChan/tennis-stats`, branche `main`.
+- Render lit `render.yaml`, te montre les services à créer (db + api + web + 2 crons).
+- Clique **Apply**. Le 1ᵉʳ build prend ~5 min.
+
+### Étape 3 — Renseigner les 2 secrets manuels
+
+Une fois les services créés, va dans chacun :
+
+1. **`tennis-stats-web` → Environment** :
+   - `VITE_API_BASE_URL` = `https://tennis-stats-api.onrender.com/api` *(adapte le nom si Render l'a suffixé)*
+   - clique **Save Changes** → ça redéclenche un build du front.
+
+2. **`tennis-stats-api` → Environment** :
+   - `CORS_ORIGINS` = `https://tennis-stats-web.onrender.com` *(URL exacte du front)*
+   - clique **Save Changes** → ça redéploie l'API.
+
+### Étape 4 — Premier peuplement
+- Récupère `ADMIN_TOKEN` dans **`tennis-stats-api` → Environment** (Render l'a auto-généré).
+- Lance un refresh complet manuellement :
+  ```bash
+  curl -X POST https://tennis-stats-api.onrender.com/api/admin/ingest/rankings \
+       -H "Authorization: Bearer <ADMIN_TOKEN>"
+  ```
+- Le cron `refresh-rankings` prendra ensuite le relais toutes les 30 min.
+
+### Coûts
+- **Gratuit pendant 90 jours** (Postgres free trial).
+- Ensuite : Postgres ~$7/mois, le reste reste gratuit (Web service free se rendort après 15 min mais le cron toutes les 30 min le réveille → toujours frais).
+
+### Alternatives
+- **Fly.io** — toujours-on, free tier 3 VMs 256 Mo, Postgres add-on.
+- **Railway** — $5 de crédit gratuit/mois, plus simple que Render mais pas de cron natif.
+- **VPS (Hetzner/DigitalOcean)** — ~$5/mois, contrôle total, plus de setup (Docker compose + nginx + certbot).
+
 ## Notes légales sur le scraping
 
 Tennis Abstract, live-tennis.eu et Wikipedia sont scrapés avec un délai
