@@ -55,3 +55,35 @@ async def ingest_matches(bg: BackgroundTasks, top_n: int = 100, concurrency: int
 def elo_recompute(db: Session = Depends(get_db)):
     counts = elo.recompute_elo(db)
     return {"status": "done", "counts": counts}
+
+
+@router.get("/debug/probe")
+async def debug_probe():
+    """Test each scraping source and report status codes — useful when the
+    deploy IP gets blocked by anti-bot."""
+    import httpx
+
+    targets = {
+        "live-tennis.eu": "https://live-tennis.eu/en/atp-live-ranking",
+        "tennisabstract.com": "https://www.tennisabstract.com/cgi-bin/player.cgi?p=CarlosAlcaraz",
+        "wikipedia.org": "https://en.wikipedia.org/wiki/ATP_Rankings",
+        "atptour.com": "https://www.atptour.com/en/rankings/singles",
+    }
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    results = {}
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        for name, url in targets.items():
+            try:
+                r = await client.get(url, headers=headers)
+                results[name] = {"status": r.status_code, "size": len(r.content)}
+            except Exception as exc:  # noqa: BLE001
+                results[name] = {"error": type(exc).__name__, "msg": str(exc)[:200]}
+    return results
