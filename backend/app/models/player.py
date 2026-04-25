@@ -37,10 +37,11 @@ class Player(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    def age(self, today: date | None = None) -> int | None:
+    @property
+    def age(self) -> int | None:
         if self.birth_date is None:
             return None
-        today = today or date.today()
+        today = date.today()
         years = today.year - self.birth_date.year
         if (today.month, today.day) < (self.birth_date.month, self.birth_date.day):
             years -= 1

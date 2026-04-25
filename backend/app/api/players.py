@@ -28,9 +28,7 @@ def get_player(player_id: int, db: Session = Depends(get_db)):
     p = db.get(Player, player_id)
     if not p:
         raise HTTPException(status_code=404, detail="Player not found")
-    data = PlayerDetail.model_validate(p)
-    data.age = p.age()
-    return data
+    return PlayerDetail.model_validate(p)
 
 
 def _match_to_read(m: Match, viewpoint_id: int | None = None) -> MatchRead:
@@ -127,7 +125,7 @@ def player_profile(player_id: int, db: Session = Depends(get_db)):
             })
 
     return PlayerFullProfile(
-        player=PlayerDetail.model_validate(p).model_dump() | {"age": p.age()},
+        player=PlayerDetail.model_validate(p).model_dump(),
         recent_results=recent,
         all_results=all_results,
         tour_level_seasons=seasons,
