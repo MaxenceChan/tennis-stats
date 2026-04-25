@@ -84,50 +84,67 @@ Lancez-le au besoin, ou laissez le scheduler tourner en fond.
 
 Voir `/docs` (OpenAPI) pour la liste exhaustive.
 
-## Déploiement en ligne (Render.com — gratuit)
+## Déploiement en ligne — 100 % gratuit à vie
 
-Tout est décrit dans [`render.yaml`](render.yaml) : Postgres + API FastAPI + frontend
-statique + 2 cron jobs (rankings toutes les 30 min, refresh complet quotidien).
+| Brique | Service | Limite | Coût |
+|---|---|---|---|
+| Postgres | **Neon** | 0,5 GB, scale-to-zero | gratuit à vie |
+| API FastAPI | **Render** (Web Service free) | sleep après 15 min | gratuit à vie |
+| Front statique | **Render** (Static Site free) | 100 GB/mois | gratuit à vie |
+| Cron 30 min | **GitHub Actions** (`.github/workflows/refresh.yml`) | illimité (repo public) | gratuit |
 
-### Étape 1 — Créer le compte Render
-- https://render.com → **Sign up with GitHub**.
-- Autorise Render à lire ton repo `tennis-stats`.
+> Le sleep de Render est résolu automatiquement : le cron GitHub Actions ping `/health` puis lance l'ingest toutes les 30 min, donc l'API reste réveillée et la base se rafraîchit en boucle.
 
-### Étape 2 — Déployer le blueprint
-- Dans Render, clique **New → Blueprint**.
-- Sélectionne le repo `MaxenceChan/tennis-stats`, branche `main`.
-- Render lit `render.yaml`, te montre les services à créer (db + api + web + 2 crons).
-- Clique **Apply**. Le 1ᵉʳ build prend ~5 min.
+### Étape 1 — Créer la base Postgres sur Neon
 
-### Étape 3 — Renseigner les 2 secrets manuels
+1. https://neon.tech → **Sign up with GitHub** → crée un projet `tennis-stats`, région Europe.
+2. Sur le dashboard, copie la **Connection string** (format `postgresql://user:pass@host/db?sslmode=require`).
+3. **Important** : remplace `postgresql://` par `postgresql+psycopg://` (driver SQLAlchemy).
 
-Une fois les services créés, va dans chacun :
+### Étape 2 — Déployer sur Render
 
-1. **`tennis-stats-web` → Environment** :
-   - `VITE_API_BASE_URL` = `https://tennis-stats-api.onrender.com/api` *(adapte le nom si Render l'a suffixé)*
-   - clique **Save Changes** → ça redéclenche un build du front.
+1. https://render.com → **Sign up with GitHub** → autorise le repo `tennis-stats`.
+2. **Dashboard → New + → Blueprint → MaxenceChan/tennis-stats** (branche `main`).
+3. Render lit [`render.yaml`](render.yaml) et liste 2 services (api + web). Clique **Apply**.
+4. Le 1er build échoue car les secrets ne sont pas encore renseignés — c'est normal.
 
-2. **`tennis-stats-api` → Environment** :
-   - `CORS_ORIGINS` = `https://tennis-stats-web.onrender.com` *(URL exacte du front)*
-   - clique **Save Changes** → ça redéploie l'API.
+### Étape 3 — Renseigner les variables d'environnement
 
-### Étape 4 — Premier peuplement
-- Récupère `ADMIN_TOKEN` dans **`tennis-stats-api` → Environment** (Render l'a auto-généré).
-- Lance un refresh complet manuellement :
-  ```bash
-  curl -X POST https://tennis-stats-api.onrender.com/api/admin/ingest/rankings \
-       -H "Authorization: Bearer <ADMIN_TOKEN>"
-  ```
-- Le cron `refresh-rankings` prendra ensuite le relais toutes les 30 min.
+#### Sur `tennis-stats-api` → Environment :
+- `DATABASE_URL` = la connection string Neon de l'étape 1 (avec `+psycopg`)
+- `CORS_ORIGINS` = URL du frontend (ex. `https://tennis-stats-web.onrender.com`)
+- `ADMIN_TOKEN` = déjà généré par Render — **copie sa valeur**, tu en auras besoin à l'étape 4
 
-### Coûts
-- **Gratuit pendant 90 jours** (Postgres free trial).
-- Ensuite : Postgres ~$7/mois, le reste reste gratuit (Web service free se rendort après 15 min mais le cron toutes les 30 min le réveille → toujours frais).
+→ Clique **Save Changes** → redéploiement auto.
 
-### Alternatives
-- **Fly.io** — toujours-on, free tier 3 VMs 256 Mo, Postgres add-on.
-- **Railway** — $5 de crédit gratuit/mois, plus simple que Render mais pas de cron natif.
-- **VPS (Hetzner/DigitalOcean)** — ~$5/mois, contrôle total, plus de setup (Docker compose + nginx + certbot).
+#### Sur `tennis-stats-web` → Environment :
+- `VITE_API_BASE_URL` = `https://tennis-stats-api.onrender.com/api` *(adapte si Render a suffixé le nom)*
+
+→ Clique **Save Changes** → rebuild du front.
+
+### Étape 4 — Configurer le cron GitHub Actions
+
+Sur GitHub : **repo → Settings → Secrets and variables → Actions → New repository secret**, crée 2 secrets :
+
+| Nom | Valeur |
+|---|---|
+| `API_URL` | `https://tennis-stats-api.onrender.com` *(sans `/api`)* |
+| `ADMIN_TOKEN` | la valeur copiée à l'étape 3 |
+
+Le workflow [`refresh.yml`](.github/workflows/refresh.yml) tournera tout seul toutes les 30 min. Pour le déclencher manuellement la 1re fois (peuplement initial) :
+**repo → Actions → Refresh data → Run workflow → mode = `full`**.
+
+### C'est tout
+
+- Front public : `https://tennis-stats-web.onrender.com`
+- API publique : `https://tennis-stats-api.onrender.com/docs`
+- Données rafraîchies automatiquement toutes les 30 min.
+
+### Notes
+
+- Si tu changes le nom des services Render, adapte les URLs dans Settings → Environment.
+- Si la 1re requête est lente (~30 s), c'est Neon + Render qui sortent du sleep — les suivantes sont rapides.
+- Pour passer en *always-on* sans frais : **Oracle Cloud Free Tier** (4 ARM cores, 24 GB RAM gratuits à vie) — setup Docker compose, plus de boulot mais zéro sleep.
 
 ## Notes légales sur le scraping
 

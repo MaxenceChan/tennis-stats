@@ -1,17 +1,10 @@
-databases:
-  - name: tennis-db
-    databaseName: tennis
-    user: tennis
-    plan: free                # 90 jours gratuit, ensuite ~$7/mois
-    region: frankfurt
-
 services:
   # ---------------------------- Backend FastAPI ------------------------------
   - type: web
     name: tennis-stats-api
     runtime: python
     region: frankfurt
-    plan: free                # 750 h/mois, s'endort après 15 min — réveillé par le cron
+    plan: free                # 750 h/mois, sleep après 15 min — réveillé par le cron GH Actions
     rootDir: backend
     buildCommand: pip install -r requirements.txt && alembic upgrade head
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -19,15 +12,13 @@ services:
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: tennis-db
-          property: connectionString
+        sync: false           # à remplir avec ton URL Neon (cf. README)
       - key: CORS_ORIGINS
-        sync: false           # rempli après déploiement du frontend
+        sync: false           # à remplir avec l'URL du frontend
       - key: ADMIN_TOKEN
-        generateValue: true   # Render génère un secret unique
+        generateValue: true
       - key: ENABLE_SCHEDULER
-        value: "false"        # on utilise le cron externe (cf. ci-dessous)
+        value: "false"        # cron externe (GitHub Actions)
       - key: USER_AGENT
         value: "tennis-stats-bot/0.1 (https://github.com/MaxenceChan/tennis-stats)"
       - key: SCRAPE_DELAY_SEC
@@ -51,44 +42,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
-        sync: false           # ex: https://tennis-stats-api.onrender.com/api
-
-  # ---------------------------- Cron : rankings 30 min ----------------------
-  - type: cron
-    name: refresh-rankings
-    runtime: python
-    region: frankfurt
-    plan: free
-    rootDir: backend
-    schedule: "*/30 * * * *"  # toutes les 30 minutes
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m app.tasks.refresh rankings
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: tennis-db
-          property: connectionString
-      - key: USER_AGENT
-        value: "tennis-stats-bot/0.1 (https://github.com/MaxenceChan/tennis-stats)"
-      - key: SCRAPE_DELAY_SEC
-        value: "2.0"
-
-  # ---------------------------- Cron : refresh complet quotidien -------------
-  - type: cron
-    name: refresh-full
-    runtime: python
-    region: frankfurt
-    plan: free
-    rootDir: backend
-    schedule: "0 4 * * *"     # 04:00 UTC tous les jours
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m app.tasks.refresh full
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: tennis-db
-          property: connectionString
-      - key: USER_AGENT
-        value: "tennis-stats-bot/0.1 (https://github.com/MaxenceChan/tennis-stats)"
-      - key: SCRAPE_DELAY_SEC
-        value: "2.0"
+        sync: false

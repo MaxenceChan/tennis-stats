@@ -1,0 +1,53 @@
+name: Refresh data
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"     # toutes les 30 min — rankings
+    - cron: "0 4 * * *"        # 04:00 UTC quotidien — refresh complet
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "rankings | full"
+        required: true
+        default: rankings
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      API_URL: ${{ secrets.API_URL }}             # ex: https://tennis-stats-api.onrender.com
+      ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+    steps:
+      - name: Pick mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ github.event.inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 4 * * *" ]; then
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=rankings" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wake the API (Render free tier sleeps after 15 min)
+        run: |
+          for i in 1 2 3 4 5; do
+            if curl -fsS "$API_URL/health"; then echo " — awake"; break; fi
+            echo "wake attempt $i…"; sleep 10
+          done
+
+      - name: Trigger refresh
+        run: |
+          MODE="${{ steps.mode.outputs.mode }}"
+          if [ "$MODE" = "full" ]; then
+            for ep in calendar bios matches; do
+              echo "POST /api/admin/ingest/$ep"
+              curl -fsS -X POST "$API_URL/api/admin/ingest/$ep" \
+                   -H "Authorization: Bearer $ADMIN_TOKEN" || true
+            done
+            curl -fsS -X POST "$API_URL/api/admin/elo/recompute" \
+                 -H "Authorization: Bearer $ADMIN_TOKEN"
+          fi
+          curl -fsS -X POST "$API_URL/api/admin/ingest/rankings" \
+               -H "Authorization: Bearer $ADMIN_TOKEN"
