@@ -317,6 +317,177 @@ def ingest_player_bio_dict(db: Session, *, full_name: str, slug: str | None = No
     return True
 
 
+# ---------------------------- Sackmann bulk ingestion --------------------------
+
+def _upsert_player_sackmann(db: Session, *, sackmann_id: int | None,
+                            full_name: str, slug: str | None = None,
+                            country: str | None = None) -> Player:
+    slug = slug or slugify(full_name)
+    p: Player | None = None
+    if sackmann_id:
+        p = db.scalar(select(Player).where(Player.sackmann_id == sackmann_id))
+    if p is None:
+        p = db.scalar(select(Player).where(Player.slug == slug))
+    if p is None:
+        parts = full_name.split()
+        p = Player(
+            slug=slug,
+            full_name=full_name,
+            first_name=parts[0] if parts else None,
+            last_name=" ".join(parts[1:]) if len(parts) > 1 else None,
+            country=country,
+            sackmann_id=sackmann_id,
+        )
+        db.add(p)
+        db.flush()
+    else:
+        if sackmann_id and not p.sackmann_id:
+            p.sackmann_id = sackmann_id
+        if country and not p.country:
+            p.country = country
+    return p
+
+
+def ingest_sackmann_players(db: Session, players: list[dict]) -> int:
+    """Bulk upsert player bios from Sackmann atp_players.csv."""
+    n = 0
+    for row in players:
+        sid = row.get("sackmann_id")
+        full = row.get("full_name", "").strip()
+        if not full:
+            continue
+        p = _upsert_player_sackmann(
+            db, sackmann_id=sid, full_name=full,
+            country=row.get("country"),
+        )
+        # bio fields (only fill if missing — never overwrite live data)
+        if row.get("birth_date") and not p.birth_date:
+            bd = row["birth_date"]
+            if isinstance(bd, str):
+                try:
+                    bd = datetime.fromisoformat(bd).date()
+                except ValueError:
+                    bd = None
+            if bd:
+                p.birth_date = bd
+        if row.get("height_cm") and not p.height_cm:
+            p.height_cm = row["height_cm"]
+        if row.get("hand") and not p.hand:
+            p.hand = row["hand"]
+        if row.get("first_name") and not p.first_name:
+            p.first_name = row["first_name"]
+        if row.get("last_name") and not p.last_name:
+            p.last_name = row["last_name"]
+        if row.get("wikidata_id") and not p.wikidata_id:
+            p.wikidata_id = row["wikidata_id"]
+        n += 1
+    db.commit()
+    logger.info("Sackmann players ingested: %d", n)
+    return n
+
+
+def ingest_sackmann_rankings(db: Session, ranking_date, rankings: list[dict]) -> int:
+    """Bulk upsert ATP rankings (one snapshot, one date)."""
+    n = 0
+    for row in rankings:
+        sid = row.get("sackmann_id")
+        rank = row.get("rank")
+        if rank is None or sid is None:
+            continue
+        p = db.scalar(select(Player).where(Player.sackmann_id == sid))
+        if p is None:
+            # No bio yet → skip, will be created when players bulk runs first
+            continue
+        p.atp_rank = rank
+        p.atp_points = row.get("points")
+        n += 1
+    db.commit()
+    logger.info("Sackmann rankings ingested for %s: %d players updated", ranking_date, n)
+    return n
+
+
+def ingest_sackmann_matches(db: Session, matches: list[dict]) -> int:
+    """Bulk insert matches from Sackmann atp_matches_YYYY.csv."""
+    n = 0
+    for row in matches:
+        winner_name = (row.get("winner_name") or "").strip()
+        loser_name = (row.get("loser_name") or "").strip()
+        tname = (row.get("tourney_name") or "").strip()
+        if not (winner_name and loser_name and tname):
+            continue
+        winner_sid = row.get("winner_sackmann_id")
+        loser_sid = row.get("loser_sackmann_id")
+
+        winner = _upsert_player_sackmann(db, sackmann_id=winner_sid, full_name=winner_name)
+        loser = _upsert_player_sackmann(db, sackmann_id=loser_sid, full_name=loser_name)
+
+        match_date = row.get("tourney_date")
+        if isinstance(match_date, str):
+            try:
+                match_date = datetime.fromisoformat(match_date).date()
+            except ValueError:
+                match_date = None
+        year = match_date.year if match_date else datetime.utcnow().year
+
+        # Tournament — slug = tourney_id (stable across years)
+        tslug = (row.get("tourney_id") or tname.lower()).replace(" ", "-")
+        tourney = db.scalar(select(Tournament).where(
+            Tournament.slug == tslug, Tournament.year == year))
+        if tourney is None:
+            tourney = Tournament(
+                slug=tslug, name=tname, year=year,
+                surface=row.get("surface"),
+                category=row.get("category"),
+            )
+            db.add(tourney)
+            db.flush()
+        else:
+            if row.get("surface") and not tourney.surface:
+                tourney.surface = row["surface"]
+            if row.get("category") and not tourney.category:
+                tourney.category = row["category"]
+
+        # Idempotence : (tournament, round, winner, loser) — Sackmann gives directional W/L.
+        existing = db.scalar(select(Match).where(
+            Match.tournament_id == tourney.id,
+            Match.round == row.get("round"),
+            ((Match.player1_id == winner.id) & (Match.player2_id == loser.id))
+            | ((Match.player1_id == loser.id) & (Match.player2_id == winner.id)),
+        ))
+        if existing is not None:
+            continue
+
+        w_stats = row.get("w_stats") or {}
+        m = Match(
+            tournament_id=tourney.id,
+            round=row.get("round"),
+            match_date=match_date,
+            player1_id=winner.id,
+            player2_id=loser.id,
+            winner_id=winner.id,
+            loser_id=loser.id,
+            score=row.get("score"),
+            sets_count=None,
+            duration_minutes=row.get("minutes"),
+            atp_rank_p1=row.get("winner_rank"),
+            atp_rank_p2=row.get("loser_rank"),
+            ace_pct_p1=w_stats.get("ace_pct"),
+            double_fault_pct_p1=w_stats.get("double_fault_pct"),
+            first_serve_pct_p1=w_stats.get("first_serve_pct"),
+            first_serve_win_pct_p1=w_stats.get("first_serve_win_pct"),
+            second_serve_win_pct_p1=w_stats.get("second_serve_win_pct"),
+            break_points_saved_p1=w_stats.get("break_points_saved_pct"),
+            source_url="https://github.com/JeffSackmann/tennis_atp",
+        )
+        db.add(m)
+        n += 1
+        if n % 500 == 0:
+            db.commit()
+    db.commit()
+    logger.info("Sackmann matches ingested: %d", n)
+    return n
+
+
 def ingest_player_matches_dicts(db: Session, *, owner_full_name: str,
                                 owner_slug: str | None = None,
                                 tennis_abstract_url: str | None = None,

@@ -16,6 +16,9 @@ from app.schemas.imports import (
     PlayerListItem,
     PlayerMatchesImport,
     RankingsImport,
+    SackmannMatchesBulk,
+    SackmannPlayersBulk,
+    SackmannRankingsBulk,
 )
 from app.services import elo, ingest
 
@@ -89,6 +92,26 @@ def import_player_bio(payload: PlayerBioImport, db: Session = Depends(get_db)):
     bio = payload.model_dump(exclude={"full_name", "slug"})
     ingest.ingest_player_bio_dict(db, full_name=payload.full_name, slug=payload.slug, bio=bio)
     return {"status": "ok"}
+
+
+@router.post("/import/sackmann-players")
+def import_sackmann_players(payload: SackmannPlayersBulk, db: Session = Depends(get_db)):
+    n = ingest.ingest_sackmann_players(db, [p.model_dump() for p in payload.players])
+    return {"status": "ok", "ingested": n}
+
+
+@router.post("/import/sackmann-rankings")
+def import_sackmann_rankings(payload: SackmannRankingsBulk, db: Session = Depends(get_db)):
+    n = ingest.ingest_sackmann_rankings(
+        db, payload.ranking_date, [r.model_dump() for r in payload.rankings]
+    )
+    return {"status": "ok", "ranking_date": str(payload.ranking_date), "updated": n}
+
+
+@router.post("/import/sackmann-matches")
+def import_sackmann_matches(payload: SackmannMatchesBulk, db: Session = Depends(get_db)):
+    n = ingest.ingest_sackmann_matches(db, [m.model_dump() for m in payload.matches])
+    return {"status": "ok", "ingested": n}
 
 
 @router.post("/import/player-matches")

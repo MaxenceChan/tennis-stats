@@ -24,7 +24,7 @@ from datetime import date
 
 import httpx
 
-from app.scrapers import atp_calendar, live_tennis, tennis_abstract, wikipedia
+from app.scrapers import atp_calendar, live_tennis, sackmann, tennis_abstract, wikipedia
 from app.scrapers.live_tennis import slugify
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -220,6 +220,134 @@ async def push_matches(client: httpx.AsyncClient, limit: int = 50) -> None:
             log.warning("  [%d/%d] %s: POST failed (%s)", i, len(players), full_name, exc)
 
 
+# ---------------------------- Sackmann (raw.githubusercontent.com) -------------
+
+CHUNK_SIZE = 500
+
+
+def _chunked(iterable, size):
+    buf = []
+    for it in iterable:
+        buf.append(it)
+        if len(buf) >= size:
+            yield buf
+            buf = []
+    if buf:
+        yield buf
+
+
+async def push_sackmann_players(client: httpx.AsyncClient) -> None:
+    log.info("Fetching Sackmann atp_players.csv...")
+    players = await sackmann.fetch_players(client)
+    log.info("  -> %d players. Pushing in chunks of %d...", len(players), CHUNK_SIZE)
+    total = 0
+    for i, chunk in enumerate(_chunked(players, CHUNK_SIZE), 1):
+        payload = {"players": [
+            {
+                "sackmann_id": p.player_id,
+                "full_name": p.full_name,
+                "first_name": p.first_name,
+                "last_name": p.last_name,
+                "country": p.country,
+                "birth_date": p.birth_date.isoformat() if p.birth_date else None,
+                "height_cm": p.height_cm,
+                "hand": p.hand,
+                "wikidata_id": p.wikidata_id,
+            }
+            for p in chunk
+        ]}
+        res = await post_json(client, "/api/admin/import/sackmann-players", payload)
+        total += res.get("ingested", 0)
+        log.info("  chunk %d: ingested=%s (total=%d)", i, res.get("ingested"), total)
+    log.info("DONE players: %d", total)
+
+
+async def push_sackmann_rankings(client: httpx.AsyncClient) -> None:
+    log.info("Fetching Sackmann atp_rankings_current.csv (latest week only)...")
+    rows = await sackmann.fetch_current_rankings(client, latest_only=True)
+    if not rows:
+        log.warning("No rankings returned")
+        return
+    payload = {
+        "ranking_date": rows[0].ranking_date.isoformat(),
+        "rankings": [
+            {"sackmann_id": r.player_id, "rank": r.rank, "points": r.points}
+            for r in rows
+        ],
+    }
+    log.info("POST /api/admin/import/sackmann-rankings (%d rows, date=%s)...",
+             len(rows), payload["ranking_date"])
+    res = await post_json(client, "/api/admin/import/sackmann-rankings", payload)
+    log.info("  -> %s", res)
+
+
+async def push_sackmann_matches(client: httpx.AsyncClient, years: list[int]) -> None:
+    for year in years:
+        log.info("Fetching Sackmann atp_matches_%d.csv...", year)
+        try:
+            matches = await sackmann.fetch_matches_year(client, year)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("  year %d failed: %s", year, exc)
+            continue
+        if not matches:
+            continue
+        log.info("  -> %d matches. Pushing in chunks of %d...", len(matches), CHUNK_SIZE)
+        total = 0
+        for i, chunk in enumerate(_chunked(matches, CHUNK_SIZE), 1):
+            payload = {"matches": [
+                {
+                    "tourney_id": m.tourney_id,
+                    "tourney_name": m.tourney_name,
+                    "surface": m.surface,
+                    "draw_size": m.draw_size,
+                    "category": sackmann.category_for(m.tourney_level, m.draw_size),
+                    "tourney_date": m.tourney_date.isoformat() if m.tourney_date else None,
+                    "match_num": m.match_num,
+                    "winner_sackmann_id": m.winner_id,
+                    "winner_name": m.winner_name,
+                    "loser_sackmann_id": m.loser_id,
+                    "loser_name": m.loser_name,
+                    "score": m.score,
+                    "best_of": m.best_of,
+                    "round": m.round,
+                    "minutes": m.minutes,
+                    "w_stats": m.w_stats,
+                    "l_stats": m.l_stats,
+                    "winner_rank": m.winner_rank,
+                    "loser_rank": m.loser_rank,
+                }
+                for m in chunk
+            ]}
+            res = await post_json(client, "/api/admin/import/sackmann-matches", payload)
+            total += res.get("ingested", 0)
+            if i % 5 == 0:
+                log.info("  chunk %d: ingested=%s (total=%d)", i, res.get("ingested"), total)
+        log.info("DONE year %d: %d new matches", year, total)
+
+
+# ---------------------------- Probe (test from runner IP) ----------------------
+
+async def probe(client: httpx.AsyncClient) -> None:
+    targets = {
+        "live-tennis.eu": "https://live-tennis.eu/en/atp-live-ranking",
+        "tennisabstract.com": "https://www.tennisabstract.com/cgi-bin/player.cgi?p=CarlosAlcaraz",
+        "wikipedia.org": "https://en.wikipedia.org/wiki/ATP_Rankings",
+        "atptour.com": "https://www.atptour.com/en/rankings/singles",
+        "raw.githubusercontent.com": "https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_rankings_current.csv",
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    for name, url in targets.items():
+        try:
+            r = await client.get(url, headers=headers, timeout=20.0)
+            log.info("PROBE %-30s -> %d (%d bytes)", name, r.status_code, len(r.content))
+        except Exception as exc:  # noqa: BLE001
+            log.info("PROBE %-30s -> ERROR %s: %s", name, type(exc).__name__, exc)
+
+
 # ---------------------------- Elo recompute ------------------------------------
 
 async def trigger_elo_recompute(client: httpx.AsyncClient) -> None:
@@ -235,25 +363,41 @@ async def trigger_elo_recompute(client: httpx.AsyncClient) -> None:
 
 async def amain() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=["rankings", "calendar", "bios", "matches",
-                                         "elo", "full"])
+    parser.add_argument("mode", choices=[
+        "probe",
+        "rankings", "calendar", "bios", "matches",
+        "sackmann", "sackmann-players", "sackmann-rankings", "sackmann-matches",
+        "elo", "full",
+    ])
     parser.add_argument("--limit", type=int, default=50,
                         help="Number of players to enrich (bios/matches)")
     parser.add_argument("--rankings-limit", type=int, default=1000,
                         help="Max rank to import")
+    parser.add_argument("--years", type=str, default="2024",
+                        help="Sackmann match years, comma-separated (e.g. 2022,2023,2024)")
     args = parser.parse_args()
 
+    years = [int(y.strip()) for y in args.years.split(",") if y.strip().isdigit()]
+
     async with httpx.AsyncClient() as client:
-        if args.mode in ("rankings", "full"):
+        if args.mode == "probe":
+            await probe(client)
+            return 0
+        # Sackmann pipeline (recommended path)
+        if args.mode in ("sackmann", "full", "sackmann-players"):
+            await push_sackmann_players(client)
+        if args.mode in ("sackmann", "full", "sackmann-rankings"):
+            await push_sackmann_rankings(client)
+        if args.mode in ("sackmann", "full", "sackmann-matches"):
+            await push_sackmann_matches(client, years=years)
+        # Legacy/live sources (will fail from blocked IPs — kept for compat)
+        if args.mode == "rankings":
             await push_rankings(client, limit=args.rankings_limit)
-        if args.mode in ("calendar", "full"):
-            try:
-                await push_calendar(client)
-            except Exception as exc:  # noqa: BLE001
-                log.warning("calendar failed: %s (likely atptour.com blocked)", exc)
-        if args.mode in ("bios", "full"):
+        if args.mode == "calendar":
+            await push_calendar(client)
+        if args.mode == "bios":
             await push_bios(client, limit=args.limit)
-        if args.mode in ("matches", "full"):
+        if args.mode == "matches":
             await push_matches(client, limit=args.limit)
         if args.mode in ("elo", "full"):
             await trigger_elo_recompute(client)

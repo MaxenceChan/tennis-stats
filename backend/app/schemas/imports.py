@@ -73,3 +73,58 @@ class PlayerListItem(BaseModel):
     atp_rank: int | None = None
     has_bio: bool = False
     has_matches: bool = False
+
+
+# ---- Sackmann bulk imports ---------------------------------------------------
+
+class SackmannPlayerIn(BaseModel):
+    sackmann_id: int
+    full_name: str
+    first_name: str | None = None
+    last_name: str | None = None
+    country: str | None = None
+    birth_date: date | None = None
+    height_cm: int | None = None
+    hand: str | None = None
+    wikidata_id: str | None = None
+
+
+class SackmannPlayersBulk(BaseModel):
+    players: list[SackmannPlayerIn] = []
+
+
+class SackmannRankingIn(BaseModel):
+    sackmann_id: int
+    rank: int
+    points: int | None = None
+
+
+class SackmannRankingsBulk(BaseModel):
+    ranking_date: date
+    rankings: list[SackmannRankingIn] = []
+
+
+class SackmannMatchIn(BaseModel):
+    tourney_id: str
+    tourney_name: str
+    surface: str | None = None
+    draw_size: int | None = None
+    category: str | None = None
+    tourney_date: date | None = None
+    match_num: int | None = None
+    winner_sackmann_id: int | None = None
+    winner_name: str | None = None
+    loser_sackmann_id: int | None = None
+    loser_name: str | None = None
+    score: str | None = None
+    best_of: int | None = None
+    round: str | None = None
+    minutes: int | None = None
+    w_stats: dict[str, float | int | None] = {}
+    l_stats: dict[str, float | int | None] = {}
+    winner_rank: int | None = None
+    loser_rank: int | None = None
+
+
+class SackmannMatchesBulk(BaseModel):
+    matches: list[SackmannMatchIn] = []

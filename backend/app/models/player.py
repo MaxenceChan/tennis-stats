@@ -31,6 +31,8 @@ class Player(Base):
 
     wikipedia_url: Mapped[str | None] = mapped_column(String(400))
     tennis_abstract_url: Mapped[str | None] = mapped_column(String(400))
+    sackmann_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    wikidata_id: Mapped[str | None] = mapped_column(String(40))
 
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
