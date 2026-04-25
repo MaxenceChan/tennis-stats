@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models import Match, Player, Tournament
@@ -407,84 +408,220 @@ def ingest_sackmann_rankings(db: Session, ranking_date, rankings: list[dict]) ->
 
 
 def ingest_sackmann_matches(db: Session, matches: list[dict]) -> int:
-    """Bulk insert matches from Sackmann atp_matches_YYYY.csv."""
+    """Bulk insert matches from Sackmann atp_matches_YYYY.csv.
+
+    Each row is wrapped in a SAVEPOINT so a single bad row (FK collision,
+    encoding issue, oversized field…) is logged and skipped without
+    poisoning the whole chunk.
+    """
     n = 0
+    skipped = 0
     for row in matches:
         winner_name = (row.get("winner_name") or "").strip()
         loser_name = (row.get("loser_name") or "").strip()
         tname = (row.get("tourney_name") or "").strip()
         if not (winner_name and loser_name and tname):
             continue
-        winner_sid = row.get("winner_sackmann_id")
-        loser_sid = row.get("loser_sackmann_id")
+        sp = db.begin_nested()
+        try:
+            winner_sid = row.get("winner_sackmann_id")
+            loser_sid = row.get("loser_sackmann_id")
+            winner = _upsert_player_sackmann(db, sackmann_id=winner_sid, full_name=winner_name)
+            loser = _upsert_player_sackmann(db, sackmann_id=loser_sid, full_name=loser_name)
+            if winner.id == loser.id:
+                # Same person on both sides → bad data (slug collision); skip.
+                raise ValueError(f"winner==loser ({winner_name})")
 
-        winner = _upsert_player_sackmann(db, sackmann_id=winner_sid, full_name=winner_name)
-        loser = _upsert_player_sackmann(db, sackmann_id=loser_sid, full_name=loser_name)
+            match_date = row.get("tourney_date")
+            if isinstance(match_date, str):
+                try:
+                    match_date = datetime.fromisoformat(match_date).date()
+                except ValueError:
+                    match_date = None
+            year = match_date.year if match_date else datetime.utcnow().year
 
-        match_date = row.get("tourney_date")
-        if isinstance(match_date, str):
-            try:
-                match_date = datetime.fromisoformat(match_date).date()
-            except ValueError:
-                match_date = None
-        year = match_date.year if match_date else datetime.utcnow().year
+            tslug = (row.get("tourney_id") or tname.lower()).replace(" ", "-")[:140]
+            tourney = db.scalar(select(Tournament).where(
+                Tournament.slug == tslug, Tournament.year == year))
+            if tourney is None:
+                tourney = Tournament(
+                    slug=tslug, name=tname[:160], year=year,
+                    surface=row.get("surface"),
+                    category=row.get("category"),
+                )
+                db.add(tourney)
+                db.flush()
+            else:
+                if row.get("surface") and not tourney.surface:
+                    tourney.surface = row["surface"]
+                if row.get("category") and not tourney.category:
+                    tourney.category = row["category"]
 
-        # Tournament — slug = tourney_id (stable across years)
-        tslug = (row.get("tourney_id") or tname.lower()).replace(" ", "-")
-        tourney = db.scalar(select(Tournament).where(
-            Tournament.slug == tslug, Tournament.year == year))
-        if tourney is None:
-            tourney = Tournament(
-                slug=tslug, name=tname, year=year,
-                surface=row.get("surface"),
-                category=row.get("category"),
+            round_val = row.get("round")
+            existing = db.scalar(select(Match).where(
+                Match.tournament_id == tourney.id,
+                Match.round == round_val,
+                ((Match.player1_id == winner.id) & (Match.player2_id == loser.id))
+                | ((Match.player1_id == loser.id) & (Match.player2_id == winner.id)),
+            ))
+            if existing is not None:
+                sp.rollback()
+                continue
+
+            w_stats = row.get("w_stats") or {}
+            score = row.get("score")
+            if score is not None:
+                score = str(score)[:80]
+            m = Match(
+                tournament_id=tourney.id,
+                round=round_val,
+                match_date=match_date,
+                player1_id=winner.id,
+                player2_id=loser.id,
+                winner_id=winner.id,
+                loser_id=loser.id,
+                score=score,
+                sets_count=None,
+                duration_minutes=row.get("minutes"),
+                atp_rank_p1=row.get("winner_rank"),
+                atp_rank_p2=row.get("loser_rank"),
+                ace_pct_p1=w_stats.get("ace_pct"),
+                double_fault_pct_p1=w_stats.get("double_fault_pct"),
+                first_serve_pct_p1=w_stats.get("first_serve_pct"),
+                first_serve_win_pct_p1=w_stats.get("first_serve_win_pct"),
+                second_serve_win_pct_p1=w_stats.get("second_serve_win_pct"),
+                break_points_saved_p1=w_stats.get("break_points_saved_pct"),
+                source_url="https://github.com/JeffSackmann/tennis_atp",
             )
-            db.add(tourney)
-            db.flush()
-        else:
-            if row.get("surface") and not tourney.surface:
-                tourney.surface = row["surface"]
-            if row.get("category") and not tourney.category:
-                tourney.category = row["category"]
-
-        # Idempotence : (tournament, round, winner, loser) — Sackmann gives directional W/L.
-        existing = db.scalar(select(Match).where(
-            Match.tournament_id == tourney.id,
-            Match.round == row.get("round"),
-            ((Match.player1_id == winner.id) & (Match.player2_id == loser.id))
-            | ((Match.player1_id == loser.id) & (Match.player2_id == winner.id)),
-        ))
-        if existing is not None:
-            continue
-
-        w_stats = row.get("w_stats") or {}
-        m = Match(
-            tournament_id=tourney.id,
-            round=row.get("round"),
-            match_date=match_date,
-            player1_id=winner.id,
-            player2_id=loser.id,
-            winner_id=winner.id,
-            loser_id=loser.id,
-            score=row.get("score"),
-            sets_count=None,
-            duration_minutes=row.get("minutes"),
-            atp_rank_p1=row.get("winner_rank"),
-            atp_rank_p2=row.get("loser_rank"),
-            ace_pct_p1=w_stats.get("ace_pct"),
-            double_fault_pct_p1=w_stats.get("double_fault_pct"),
-            first_serve_pct_p1=w_stats.get("first_serve_pct"),
-            first_serve_win_pct_p1=w_stats.get("first_serve_win_pct"),
-            second_serve_win_pct_p1=w_stats.get("second_serve_win_pct"),
-            break_points_saved_p1=w_stats.get("break_points_saved_pct"),
-            source_url="https://github.com/JeffSackmann/tennis_atp",
-        )
-        db.add(m)
-        n += 1
-        if n % 500 == 0:
-            db.commit()
+            db.add(m)
+            db.flush()  # surface IntegrityError now → caught by except below
+            sp.commit()
+            n += 1
+        except (SQLAlchemyError, ValueError) as exc:
+            sp.rollback()
+            skipped += 1
+            logger.warning(
+                "skip match %s vs %s @ %s round=%s : %s",
+                winner_name, loser_name, row.get("tourney_id"),
+                row.get("round"), exc,
+            )
     db.commit()
-    logger.info("Sackmann matches ingested: %d", n)
+    logger.info("Sackmann matches ingested: %d (skipped: %d)", n, skipped)
+    return n
+
+
+# ---------------------------- BallDontLie bulk ingestion ----------------------
+
+def _upsert_player_bdl(db: Session, *, bdl_id: int | None, full_name: str,
+                       country: str | None = None) -> Player:
+    slug = slugify(full_name)
+    p: Player | None = None
+    if bdl_id:
+        p = db.scalar(select(Player).where(Player.bdl_id == bdl_id))
+    if p is None:
+        p = db.scalar(select(Player).where(Player.slug == slug))
+    if p is None:
+        parts = full_name.split()
+        p = Player(
+            slug=slug,
+            full_name=full_name,
+            first_name=parts[0] if parts else None,
+            last_name=" ".join(parts[1:]) if len(parts) > 1 else None,
+            country=country,
+            bdl_id=bdl_id,
+        )
+        db.add(p)
+        db.flush()
+    else:
+        if bdl_id and not p.bdl_id:
+            p.bdl_id = bdl_id
+        if country and not p.country:
+            p.country = country
+    return p
+
+
+def ingest_bdl_rankings(db: Session, ranking_date, rankings: list[dict]) -> int:
+    """Bulk upsert current ATP rankings from BallDontLie. Creates players on the fly."""
+    n = 0
+    for row in rankings:
+        bdl_id = row.get("bdl_id")
+        full = (row.get("full_name") or "").strip()
+        rank = row.get("rank")
+        if not full or rank is None:
+            continue
+        sp = db.begin_nested()
+        try:
+            p = _upsert_player_bdl(db, bdl_id=bdl_id, full_name=full,
+                                   country=row.get("country"))
+            p.atp_rank = rank
+            p.atp_points = row.get("points")
+            if row.get("height_cm") and not p.height_cm:
+                p.height_cm = row["height_cm"]
+            if row.get("weight_kg") and not p.weight_kg:
+                p.weight_kg = row["weight_kg"]
+            plays = row.get("plays")
+            if plays and not p.hand:
+                p.hand = "L" if "left" in plays.lower() else ("R" if "right" in plays.lower() else None)
+            db.flush()
+            sp.commit()
+            n += 1
+        except SQLAlchemyError as exc:
+            sp.rollback()
+            logger.warning("bdl ranking skip %s : %s", full, exc)
+    db.commit()
+    logger.info("BDL rankings ingested for %s: %d", ranking_date, n)
+    return n
+
+
+def ingest_bdl_tournaments(db: Session, tournaments: list[dict]) -> int:
+    """Upsert tournaments from BallDontLie calendar (year-aware via `season`)."""
+    n = 0
+    for t in tournaments:
+        name = (t.get("name") or "").strip()
+        season = t.get("season")
+        if not name or not season:
+            continue
+        slug = slugify(name)[:140]
+        sp = db.begin_nested()
+        try:
+            tour = db.scalar(select(Tournament).where(
+                Tournament.slug == slug, Tournament.year == season))
+            if tour is None:
+                tour = Tournament(slug=slug, name=name[:160], year=season)
+                db.add(tour)
+                db.flush()
+            if t.get("surface") and not tour.surface:
+                tour.surface = t["surface"]
+            if t.get("category") and not tour.category:
+                tour.category = t["category"]
+            if t.get("location") and not tour.city:
+                tour.city = t["location"][:80]
+            sd = t.get("start_date")
+            if isinstance(sd, str):
+                try:
+                    sd = datetime.fromisoformat(sd).date()
+                except ValueError:
+                    sd = None
+            if sd:
+                tour.start_date = sd
+            ed = t.get("end_date")
+            if isinstance(ed, str):
+                try:
+                    ed = datetime.fromisoformat(ed).date()
+                except ValueError:
+                    ed = None
+            if ed:
+                tour.end_date = ed
+            if t.get("draw_size"):
+                tour.draw_size = t["draw_size"]
+            db.flush()
+            sp.commit()
+            n += 1
+        except SQLAlchemyError as exc:
+            sp.rollback()
+            logger.warning("bdl tournament skip %s/%s : %s", name, season, exc)
+    db.commit()
+    logger.info("BDL tournaments ingested: %d", n)
     return n
 
 

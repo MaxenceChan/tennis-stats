@@ -11,6 +11,8 @@ from app.api._auth import require_admin
 from app.database import SessionLocal, get_db
 from app.models import Match, Player
 from app.schemas.imports import (
+    BdlRankingsBulk,
+    BdlTournamentsBulk,
     CalendarImport,
     PlayerBioImport,
     PlayerListItem,
@@ -111,6 +113,20 @@ def import_sackmann_rankings(payload: SackmannRankingsBulk, db: Session = Depend
 @router.post("/import/sackmann-matches")
 def import_sackmann_matches(payload: SackmannMatchesBulk, db: Session = Depends(get_db)):
     n = ingest.ingest_sackmann_matches(db, [m.model_dump() for m in payload.matches])
+    return {"status": "ok", "ingested": n}
+
+
+@router.post("/import/bdl-rankings")
+def import_bdl_rankings(payload: BdlRankingsBulk, db: Session = Depends(get_db)):
+    n = ingest.ingest_bdl_rankings(
+        db, payload.ranking_date, [r.model_dump() for r in payload.rankings]
+    )
+    return {"status": "ok", "ranking_date": str(payload.ranking_date), "updated": n}
+
+
+@router.post("/import/bdl-tournaments")
+def import_bdl_tournaments(payload: BdlTournamentsBulk, db: Session = Depends(get_db)):
+    n = ingest.ingest_bdl_tournaments(db, [t.model_dump() for t in payload.tournaments])
     return {"status": "ok", "ingested": n}
 
 

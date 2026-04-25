@@ -24,7 +24,7 @@ from datetime import date
 
 import httpx
 
-from app.scrapers import atp_calendar, live_tennis, sackmann, tennis_abstract, wikipedia
+from app.scrapers import atp_calendar, balldontlie, live_tennis, sackmann, tennis_abstract, wikipedia
 from app.scrapers.live_tennis import slugify
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -325,6 +325,62 @@ async def push_sackmann_matches(client: httpx.AsyncClient, years: list[int]) -> 
         log.info("DONE year %d: %d new matches", year, total)
 
 
+# ---------------------------- BallDontLie (current data) ----------------------
+
+async def push_bdl_rankings(client: httpx.AsyncClient) -> None:
+    log.info("Fetching BallDontLie current rankings...")
+    rows = await balldontlie.fetch_rankings()
+    if not rows:
+        log.warning("BDL rankings empty — skipping push")
+        return
+    rdate = rows[0].ranking_date or date.today()
+    log.info("  -> %d rankings, date=%s", len(rows), rdate)
+    payload = {
+        "ranking_date": rdate.isoformat(),
+        "rankings": [
+            {
+                "bdl_id": r.player_bdl_id,
+                "full_name": r.full_name,
+                "rank": r.rank,
+                "points": r.points,
+                "movement": r.movement,
+            }
+            for r in rows if r.player_bdl_id and r.rank
+        ],
+    }
+    res = await post_json(client, "/api/admin/import/bdl-rankings", payload)
+    log.info("  -> %s", res)
+
+
+async def push_bdl_tournaments(client: httpx.AsyncClient,
+                                seasons: list[int] | None = None) -> None:
+    seasons = seasons or [date.today().year]
+    for season in seasons:
+        log.info("Fetching BDL tournaments season=%d ...", season)
+        rows = await balldontlie.fetch_tournaments(season=season)
+        log.info("  -> %d tournaments", len(rows))
+        if not rows:
+            continue
+        payload = {
+            "tournaments": [
+                {
+                    "bdl_id": t.bdl_id,
+                    "name": t.name,
+                    "location": t.location,
+                    "surface": t.surface,
+                    "category": t.category,
+                    "season": t.season,
+                    "start_date": t.start_date.isoformat() if t.start_date else None,
+                    "end_date": t.end_date.isoformat() if t.end_date else None,
+                    "draw_size": t.draw_size,
+                }
+                for t in rows
+            ],
+        }
+        res = await post_json(client, "/api/admin/import/bdl-tournaments", payload)
+        log.info("  -> %s", res)
+
+
 # ---------------------------- Probe (test from runner IP) ----------------------
 
 async def probe(client: httpx.AsyncClient) -> None:
@@ -367,6 +423,7 @@ async def amain() -> int:
         "probe",
         "rankings", "calendar", "bios", "matches",
         "sackmann", "sackmann-players", "sackmann-rankings", "sackmann-matches",
+        "bdl", "bdl-rankings", "bdl-tournaments",
         "elo", "full",
     ])
     parser.add_argument("--limit", type=int, default=50,
@@ -390,6 +447,11 @@ async def amain() -> int:
             await push_sackmann_rankings(client)
         if args.mode in ("sackmann", "full", "sackmann-matches"):
             await push_sackmann_matches(client, years=years)
+        # BallDontLie (current rankings + calendar — fills the post-Sackmann gap)
+        if args.mode in ("bdl", "full", "bdl-rankings"):
+            await push_bdl_rankings(client)
+        if args.mode in ("bdl", "full", "bdl-tournaments"):
+            await push_bdl_tournaments(client, seasons=[date.today().year])
         # Legacy/live sources (will fail from blocked IPs — kept for compat)
         if args.mode == "rankings":
             await push_rankings(client, limit=args.rankings_limit)

@@ -128,3 +128,38 @@ class SackmannMatchIn(BaseModel):
 
 class SackmannMatchesBulk(BaseModel):
     matches: list[SackmannMatchIn] = []
+
+
+# ---- BallDontLie bulk imports (current rankings + calendar) -----------------
+
+class BdlRankingIn(BaseModel):
+    bdl_id: int
+    full_name: str
+    rank: int
+    points: int | None = None
+    movement: int | None = None
+    country: str | None = None
+    height_cm: int | None = None
+    weight_kg: int | None = None
+    plays: str | None = None  # "Right-Handed" / "Left-Handed"
+
+
+class BdlRankingsBulk(BaseModel):
+    ranking_date: date
+    rankings: list[BdlRankingIn] = []
+
+
+class BdlTournamentIn(BaseModel):
+    bdl_id: int
+    name: str
+    location: str | None = None
+    surface: str | None = None
+    category: str | None = None
+    season: int
+    start_date: date | None = None
+    end_date: date | None = None
+    draw_size: int | None = None
+
+
+class BdlTournamentsBulk(BaseModel):
+    tournaments: list[BdlTournamentIn] = []

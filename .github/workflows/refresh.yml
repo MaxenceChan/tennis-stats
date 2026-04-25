@@ -11,14 +11,14 @@ name: Refresh data
 
 on:
   schedule:
-    - cron: "0 6 * * 1"        # Lundi 06:00 UTC — refresh rankings (Sackmann publie le lundi)
-    - cron: "0 4 1 * *"        # 1er du mois 04:00 UTC — refresh complet (matches inclus)
+    - cron: "0 6 * * *"        # Tous les jours 06:00 UTC — BDL rankings (live, à jour)
+    - cron: "0 4 1 * *"        # 1er du mois 04:00 UTC — full refresh (Sackmann + BDL)
   workflow_dispatch:
     inputs:
       mode:
-        description: "probe | sackmann | sackmann-players | sackmann-rankings | sackmann-matches | full"
+        description: "probe | sackmann | sackmann-players | sackmann-rankings | sackmann-matches | bdl | bdl-rankings | bdl-tournaments | full"
         required: true
-        default: sackmann
+        default: bdl
       years:
         description: "Sackmann match years (comma-sep, ex: 2022,2023,2024)"
         required: false
@@ -31,6 +31,7 @@ jobs:
     env:
       API_URL: ${{ secrets.API_URL }}
       ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+      BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,7 +57,7 @@ jobs:
             echo "mode=full" >> "$GITHUB_OUTPUT"
             echo "years=2022,2023,2024" >> "$GITHUB_OUTPUT"
           else
-            echo "mode=sackmann-rankings" >> "$GITHUB_OUTPUT"
+            echo "mode=bdl" >> "$GITHUB_OUTPUT"
             echo "years=2024" >> "$GITHUB_OUTPUT"
           fi
 
