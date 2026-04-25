@@ -20,7 +20,7 @@ services:
       - key: ENABLE_SCHEDULER
         value: "false"        # cron externe (GitHub Actions)
       - key: USER_AGENT
-        value: "tennis-stats-bot/0.1 (https://github.com/MaxenceChan/tennis-stats)"
+        value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
       - key: SCRAPE_DELAY_SEC
         value: "2.0"
       - key: PYTHON_VERSION
