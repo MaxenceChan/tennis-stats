@@ -6,24 +6,32 @@ export default function Header() {
 
   return (
     <header className="topbar">
-      <Link to="/" className="brand">🎾 Tennis Stats</Link>
+      <Link to="/" className="brand" aria-label="Tennis Stats accueil">
+        <span className="brand-ball" aria-hidden />
+        <span className="brand-text">Tennis Stats</span>
+      </Link>
       <nav className="nav">
         <div
           className="dropdown"
           onMouseEnter={() => setOpenRanking(true)}
           onMouseLeave={() => setOpenRanking(false)}
         >
-          <button className="dropdown-trigger">Classements ▾</button>
+          <button className="dropdown-trigger" aria-haspopup="menu" aria-expanded={openRanking}>
+            Classements
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+              <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
           {openRanking && (
-            <div className="dropdown-menu">
+            <div className="dropdown-menu" role="menu">
               <NavLink to="/rankings/atp">ATP Live</NavLink>
-              <NavLink to="/rankings/race">ATP Race Live</NavLink>
+              <NavLink to="/rankings/race">ATP Race</NavLink>
               <NavLink to="/rankings/elo">Elo</NavLink>
             </div>
           )}
         </div>
-        <NavLink to="/calendar">Calendrier ATP</NavLink>
-        <NavLink to="/players">Fiche Joueur</NavLink>
+        <NavLink to="/calendar">Calendrier</NavLink>
+        <NavLink to="/players">Fiche joueur</NavLink>
       </nav>
     </header>
   );

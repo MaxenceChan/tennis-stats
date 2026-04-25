@@ -1,34 +1,61 @@
 import { Link } from "react-router-dom";
 
+const TILES = [
+  {
+    to: "/rankings/atp",
+    icon: "🏆",
+    title: "ATP Live",
+    desc: "Classement officiel mis à jour quotidiennement.",
+  },
+  {
+    to: "/rankings/race",
+    icon: "🏁",
+    title: "Race to Turin",
+    desc: "Course aux ATP Finals depuis le début de saison.",
+  },
+  {
+    to: "/rankings/elo",
+    icon: "📊",
+    title: "Classement Elo",
+    desc: "Calculé sur tous les matches connus, par surface.",
+  },
+  {
+    to: "/calendar",
+    icon: "🗓️",
+    title: "Calendrier",
+    desc: "ATP 250, 500, Masters 1000, Grand Chelem.",
+  },
+  {
+    to: "/players",
+    icon: "🎾",
+    title: "Fiche joueur",
+    desc: "Recherche par nom — résultats, titres, head-to-head.",
+  },
+];
+
 export default function Home() {
   return (
-    <section className="hero">
-      <h1>Tennis Stats</h1>
-      <p className="lead">
-        Classements ATP en direct, calendrier de la tournée et fiches détaillées
-        des joueurs — données agrégées depuis Tennis Abstract, live-tennis.eu et Wikipedia.
-      </p>
+    <section>
+      <div className="hero">
+        <span className="hero-eyebrow">
+          <span className="chip-dot" /> Saison ATP en cours
+        </span>
+        <h1>Le tennis pro,<br />en chiffres et en détails.</h1>
+        <p className="lead">
+          Classements ATP en direct, calendrier de la tournée, fiches détaillées,
+          historique des matchs et statistiques par surface — agrégés depuis
+          Jeff Sackmann, BallDontLie et Wikipedia.
+        </p>
+      </div>
+
       <div className="cards">
-        <Link to="/rankings/atp" className="card">
-          <h3>ATP Live</h3>
-          <p>Classement officiel mis à jour quotidiennement.</p>
-        </Link>
-        <Link to="/rankings/race" className="card">
-          <h3>ATP Race Live</h3>
-          <p>Course aux ATP Finals depuis le début de saison.</p>
-        </Link>
-        <Link to="/rankings/elo" className="card">
-          <h3>Classement Elo</h3>
-          <p>Calculé sur tous les matches connus, par surface.</p>
-        </Link>
-        <Link to="/calendar" className="card">
-          <h3>Calendrier</h3>
-          <p>Tournois ATP : 250, 500, Masters 1000, Grand Chelem.</p>
-        </Link>
-        <Link to="/players" className="card">
-          <h3>Fiche Joueur</h3>
-          <p>Recherche par nom — résultats récents, titres, head-to-head.</p>
-        </Link>
+        {TILES.map((t) => (
+          <Link key={t.to} to={t.to} className="card">
+            <span className="card-icon">{t.icon}</span>
+            <h3>{t.title}</h3>
+            <p>{t.desc}</p>
+          </Link>
+        ))}
       </div>
     </section>
   );

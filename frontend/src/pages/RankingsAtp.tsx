@@ -8,15 +8,31 @@ export default function RankingsAtp() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api.rankings.atp(200).then(setRows).catch((e) => setErr(String(e))).finally(() => setLoading(false));
+    api.rankings.atp(200)
+      .then(setRows)
+      .catch((e) => setErr(String(e)))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
     <>
-      <h1>Classement ATP Live</h1>
-      {loading && <p>Chargement…</p>}
+      <div className="page-head">
+        <h1>Classement ATP</h1>
+        <p className="sub">Top 200 mondial — mis à jour chaque lundi.</p>
+      </div>
+      {loading && <SkeletonTable />}
       {err && <p className="error">{err}</p>}
       {!loading && !err && <RankingTable rows={rows} pointsLabel="Points ATP" />}
     </>
+  );
+}
+
+function SkeletonTable() {
+  return (
+    <div className="table-wrap" style={{ padding: 16 }}>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="skeleton skeleton-row" />
+      ))}
+    </div>
   );
 }

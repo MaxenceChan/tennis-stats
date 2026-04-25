@@ -3,10 +3,10 @@ import { api, type RankingRow } from "../api/client";
 import RankingTable from "../components/RankingTable";
 
 const SURFACES = [
-  { value: "all", label: "Toutes surfaces" },
-  { value: "Hard", label: "Dur" },
-  { value: "Clay", label: "Terre battue" },
-  { value: "Grass", label: "Gazon" },
+  { value: "all",   label: "Toutes surfaces", chip: "" },
+  { value: "Hard",  label: "Dur",             chip: "surface-hard" },
+  { value: "Clay",  label: "Terre battue",    chip: "surface-clay" },
+  { value: "Grass", label: "Gazon",           chip: "surface-grass" },
 ];
 
 export default function RankingsElo() {
@@ -26,10 +26,16 @@ export default function RankingsElo() {
 
   return (
     <>
-      <h1>Classement Elo</h1>
+      <div className="page-head">
+        <h1>Classement Elo</h1>
+        <p className="sub">
+          Calculé sur l'historique des matchs (Sackmann), pondéré par l'enjeu et
+          la surface — un standard chez les statisticiens du tennis.
+        </p>
+      </div>
       <div className="toolbar">
         <label>
-          Surface :{" "}
+          Surface
           <select value={surface} onChange={(e) => setSurface(e.target.value)}>
             {SURFACES.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>

@@ -8,12 +8,21 @@ export default function RankingsRace() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api.rankings.race(200).then(setRows).catch((e) => setErr(String(e))).finally(() => setLoading(false));
+    api.rankings.race(200)
+      .then(setRows)
+      .catch((e) => setErr(String(e)))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
     <>
-      <h1>Classement ATP Race Live</h1>
+      <div className="page-head">
+        <h1>ATP Race to Turin</h1>
+        <p className="sub">
+          Classement de la saison en cours — les 8 premiers se qualifient pour les
+          Nitto ATP Finals à Turin.
+        </p>
+      </div>
       {loading && <p>Chargement…</p>}
       {err && <p className="error">{err}</p>}
       {!loading && !err && <RankingTable rows={rows} pointsLabel="Points Race" />}
