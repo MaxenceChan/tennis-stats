@@ -30,12 +30,10 @@ services:
   - type: web
     name: tennis-stats-web
     runtime: static
-    region: frankfurt
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     autoDeploy: true
-    pullRequestPreviewsEnabled: true
     routes:
       - type: rewrite
         source: /*
