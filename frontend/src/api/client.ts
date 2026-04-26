@@ -32,7 +32,7 @@ export const api = {
     if (year) qs.set("year", String(year));
     if (category) qs.set("category", category);
     const s = qs.toString();
-    return request<TournamentBase[]>(`/calendar${s ? `?${s}` : ""}`);
+    return request<TournamentWithWinner[]>(`/calendar${s ? `?${s}` : ""}`);
   },
 };
 
@@ -82,6 +82,10 @@ export type TournamentBase = {
   start_date: string | null;
   end_date: string | null;
   draw_size: number | null;
+};
+
+export type TournamentWithWinner = TournamentBase & {
+  winner: PlayerBase | null;
 };
 
 export type MatchStats = {

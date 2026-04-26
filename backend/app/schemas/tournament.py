@@ -1,6 +1,8 @@
 from datetime import date
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.player import PlayerBase
+
 
 class TournamentBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -16,3 +18,7 @@ class TournamentBase(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     draw_size: int | None = None
+
+
+class TournamentWithWinner(TournamentBase):
+    winner: PlayerBase | None = None

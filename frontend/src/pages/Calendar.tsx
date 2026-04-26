@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { api, type TournamentBase } from "../api/client";
+import { Link } from "react-router-dom";
+import { api, type TournamentWithWinner } from "../api/client";
+import { flagEmoji } from "../lib/flag";
 import { surfaceChipClass, surfaceLabel, categoryChipClass } from "../lib/surface";
 
 const CATEGORIES = ["Grand Slam", "Masters 1000", "ATP 500", "ATP 250", "ATP Finals"];
 
 export default function Calendar() {
-  const [rows, setRows] = useState<TournamentBase[]>([]);
+  const [rows, setRows] = useState<TournamentWithWinner[]>([]);
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [category, setCategory] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -55,6 +57,7 @@ export default function Calendar() {
               <th style={{ width: 130 }}>Catégorie</th>
               <th style={{ width: 100 }}>Surface</th>
               <th>Lieu</th>
+              <th style={{ width: 200 }}>Vainqueur</th>
             </tr>
           </thead>
           <tbody>
@@ -78,13 +81,23 @@ export default function Calendar() {
                 <td style={{ color: "var(--muted)" }}>
                   {[t.city, t.country].filter(Boolean).join(", ") || "—"}
                 </td>
+                <td>
+                  {t.winner ? (
+                    <Link to={`/players/${t.winner.id}`} className="player-link">
+                      <span className="flag">{flagEmoji(t.winner.country)}</span>
+                      {t.winner.full_name}
+                    </Link>
+                  ) : (
+                    <span style={{ color: "var(--faint)" }}>—</span>
+                  )}
+                </td>
               </tr>
             ))}
             {!loading && rows.length === 0 && (
-              <tr><td colSpan={5} className="empty">Aucun tournoi pour ces filtres.</td></tr>
+              <tr><td colSpan={6} className="empty">Aucun tournoi pour ces filtres.</td></tr>
             )}
             {loading && (
-              <tr><td colSpan={5} className="empty">Chargement…</td></tr>
+              <tr><td colSpan={6} className="empty">Chargement…</td></tr>
             )}
           </tbody>
         </table>
