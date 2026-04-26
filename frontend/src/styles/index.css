@@ -864,6 +864,83 @@ p { margin: 0 0 0.75rem; }
 }
 .slam-card.champion .slam-years { color: var(--text-soft); }
 
+/* --- Surface stats (totals + per-year table) --- */
+.surface-totals {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.85rem;
+}
+.surface-total-card {
+  background: var(--panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.surface-total-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--surf-tint, transparent) 0%, transparent 60%);
+  pointer-events: none;
+  opacity: 0.5;
+}
+.surface-total-card.surface-hard   { --surf-tint: rgba(37, 99, 235, 0.18);  --surf-color: #2563eb; }
+.surface-total-card.surface-clay   { --surf-tint: rgba(232, 105, 63, 0.18); --surf-color: #e8693f; }
+.surface-total-card.surface-grass  { --surf-tint: rgba(95, 168, 74, 0.18);  --surf-color: #5fa84a; }
+.surface-total-card.surface-carpet { --surf-tint: rgba(176, 139, 212, 0.18); --surf-color: #b08bd4; }
+.surface-total-head {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+  font-weight: 600;
+  position: relative;
+}
+.surface-total-head .chip-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--surf-color);
+  display: inline-block;
+}
+.surface-total-main {
+  display: flex; align-items: baseline; gap: 0.6rem;
+  position: relative;
+}
+.surface-total-pct {
+  font-family: var(--font-display, var(--font-sans));
+  font-size: 1.8rem; font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.surface-total-vd {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.surface-total-foot {
+  font-size: 0.78rem;
+  color: var(--faint);
+  position: relative;
+}
+
+.surface-stats-table th.surf-col {
+  text-align: center;
+  border-left: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+}
+.surface-stats-table th.surf-hard   { color: #6c95f0; }
+.surface-stats-table th.surf-clay   { color: #f08768; }
+.surface-stats-table th.surf-grass  { color: #7fc46c; }
+.surface-stats-table th.surf-carpet { color: #c9aae0; }
+.surface-stats-table td.num.muted { color: var(--faint); }
+.surface-stats-table td.num.ball  { color: var(--ball); font-weight: 600; }
+
 /* --- Rank progression chart --- */
 .chart-wrap {
   background: var(--panel);
@@ -883,4 +960,7 @@ p { margin: 0 0 0.75rem; }
   .data-table th, .data-table td { padding: 0.6rem 0.7rem; }
   .slams-grid { grid-template-columns: repeat(2, 1fr); }
   .summary-card-value { font-size: 1.6rem; }
+  .surface-totals { grid-template-columns: repeat(2, 1fr); }
+  .surface-stats-table { font-size: 0.78rem; }
+  .surface-stats-table th, .surface-stats-table td { padding: 0.45rem 0.4rem; }
 }

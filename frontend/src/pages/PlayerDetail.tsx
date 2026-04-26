@@ -275,6 +275,36 @@ function Summary({ profile }: { profile: PlayerFullProfile }) {
     });
   }, [profile, pid]);
 
+  // Surface stats — all-time totals + breakdown per year
+  const surfaceStats = useMemo(() => {
+    const SURFS = ["Hard", "Clay", "Grass", "Carpet"] as const;
+    type S = typeof SURFS[number];
+
+    type Bucket = { matches: number; wins: number; losses: number; titles: number };
+    const empty = (): Bucket => ({ matches: 0, wins: 0, losses: 0, titles: 0 });
+
+    const totals: Record<S, Bucket> = { Hard: empty(), Clay: empty(), Grass: empty(), Carpet: empty() };
+    const byYear = new Map<number, Record<S, Bucket>>();
+
+    for (const m of profile.all_results) {
+      const surf = m.tournament.surface as S | null;
+      if (!surf || !SURFS.includes(surf)) continue;
+      const year = m.tournament.year;
+      if (!byYear.has(year)) {
+        byYear.set(year, { Hard: empty(), Clay: empty(), Grass: empty(), Carpet: empty() });
+      }
+      const yb = byYear.get(year)![surf];
+      const tb = totals[surf];
+      yb.matches++; tb.matches++;
+      if (m.winner_id === pid) { yb.wins++; tb.wins++; }
+      else if (m.loser_id === pid) { yb.losses++; tb.losses++; }
+      if (m.round === "F" && m.winner_id === pid) { yb.titles++; tb.titles++; }
+    }
+
+    const years = Array.from(byYear.keys()).sort((a, b) => b - a);
+    return { totals, byYear, years };
+  }, [profile, pid]);
+
   // Year-end rank progression: for each year, the rank from the latest match of that year
   // where this player has a known rank.
   const rankSeries = useMemo(() => {
@@ -341,6 +371,47 @@ function Summary({ profile }: { profile: PlayerFullProfile }) {
         </div>
       </section>
 
+      {/* --- Stats par surface --- */}
+      <section className="summary-section">
+        <h2 className="summary-h2">Stats par surface</h2>
+        <SurfaceTotals totals={surfaceStats.totals} />
+        {surfaceStats.years.length > 0 && (
+          <div className="table-wrap">
+            <table className="data-table surface-stats-table">
+              <thead>
+                <tr>
+                  <th rowSpan={2}>Année</th>
+                  <th colSpan={3} className="surf-col surf-hard">Dur</th>
+                  <th colSpan={3} className="surf-col surf-clay">Terre</th>
+                  <th colSpan={3} className="surf-col surf-grass">Gazon</th>
+                  <th colSpan={3} className="surf-col surf-carpet">Moquette</th>
+                </tr>
+                <tr>
+                  <th className="num">M</th><th className="num">%V</th><th className="num">T</th>
+                  <th className="num">M</th><th className="num">%V</th><th className="num">T</th>
+                  <th className="num">M</th><th className="num">%V</th><th className="num">T</th>
+                  <th className="num">M</th><th className="num">%V</th><th className="num">T</th>
+                </tr>
+              </thead>
+              <tbody>
+                {surfaceStats.years.map((y) => {
+                  const row = surfaceStats.byYear.get(y)!;
+                  return (
+                    <tr key={y}>
+                      <td style={{ fontWeight: 600 }}>{y}</td>
+                      <SurfaceCells b={row.Hard} />
+                      <SurfaceCells b={row.Clay} />
+                      <SurfaceCells b={row.Grass} />
+                      <SurfaceCells b={row.Carpet} />
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       {/* --- Rank progression chart --- */}
       <section className="summary-section">
         <h2 className="summary-h2">Progression classement ATP (fin d'année)</h2>
@@ -351,6 +422,56 @@ function Summary({ profile }: { profile: PlayerFullProfile }) {
         )}
       </section>
     </div>
+  );
+}
+
+type Bucket = { matches: number; wins: number; losses: number; titles: number };
+
+function SurfaceTotals({ totals }: {
+  totals: Record<"Hard" | "Clay" | "Grass" | "Carpet", Bucket>;
+}) {
+  const items: { key: keyof typeof totals; label: string; cls: string }[] = [
+    { key: "Hard",   label: "Dur",      cls: "surface-hard"   },
+    { key: "Clay",   label: "Terre",    cls: "surface-clay"   },
+    { key: "Grass",  label: "Gazon",    cls: "surface-grass"  },
+    { key: "Carpet", label: "Moquette", cls: "surface-carpet" },
+  ];
+  return (
+    <div className="surface-totals">
+      {items.map(({ key, label, cls }) => {
+        const b = totals[key];
+        const pct = b.matches ? Math.round((b.wins / b.matches) * 100) : null;
+        return (
+          <div key={key} className={`surface-total-card ${cls}`}>
+            <div className="surface-total-head">
+              <span className="chip-dot" />
+              {label}
+            </div>
+            <div className="surface-total-main">
+              <span className="surface-total-pct">{pct != null ? `${pct}%` : "—"}</span>
+              <span className="surface-total-vd">{b.wins}V – {b.losses}D</span>
+            </div>
+            <div className="surface-total-foot">
+              {b.matches} match{b.matches > 1 ? "s" : ""} · {b.titles} titre{b.titles > 1 ? "s" : ""}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SurfaceCells({ b }: { b: Bucket }) {
+  if (b.matches === 0) {
+    return <><td className="num muted">—</td><td className="num muted">—</td><td className="num muted">—</td></>;
+  }
+  const pct = Math.round((b.wins / b.matches) * 100);
+  return (
+    <>
+      <td className="num">{b.matches}</td>
+      <td className={`num ${pct >= 50 ? "win" : "loss"}`}>{pct}%</td>
+      <td className={`num ${b.titles > 0 ? "ball" : ""}`}>{b.titles || "—"}</td>
+    </>
   );
 }
 

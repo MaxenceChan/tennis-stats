@@ -112,9 +112,9 @@ def player_profile(player_id: int, db: Session = Depends(get_db)):
         for y, v in sorted(by_year.items(), reverse=True)
     ]
 
-    # Major events = matches dans Grand Slams / Masters 1000 récents
+    # Major events = TOUS les matchs en Grand Slams / Masters 1000 / ATP Finals (carrière complète)
     major_events = []
-    for m in matches[:40]:
+    for m in matches:
         if m.tournament and m.tournament.category in ("Grand Slam", "Masters 1000", "ATP Finals"):
             major_events.append({
                 "tournament": m.tournament.name,
@@ -129,7 +129,7 @@ def player_profile(player_id: int, db: Session = Depends(get_db)):
         recent_results=recent,
         all_results=all_results,
         tour_level_seasons=seasons,
-        recent_titles_finals=titles_finals[:30],
+        recent_titles_finals=titles_finals,  # carrière complète
         year_end_rankings=[],
         major_recent_events=major_events,
     )
