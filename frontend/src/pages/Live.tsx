@@ -1,33 +1,80 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type LiveMatch } from "../api/client";
 import { flagEmoji } from "../lib/flag";
 import { surfaceChipClass, surfaceLabel } from "../lib/surface";
 
 const REFRESH_MS = 60_000;
+// Si la dernière maj date d'avant ce seuil, on rafraîchit au retour de l'onglet.
+const STALE_AFTER_MS = 30_000;
 
 export default function Live() {
   const [matches, setMatches] = useState<LiveMatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      api.live.matches()
-        .then((rows) => {
-          if (cancelled) return;
-          setMatches(rows);
-          setUpdatedAt(new Date());
-          setErr(null);
-        })
-        .catch((e) => !cancelled && setErr(String(e)))
-        .finally(() => !cancelled && setLoading(false));
-    };
-    load();
-    const id = setInterval(load, REFRESH_MS);
-    return () => { cancelled = true; clearInterval(id); };
+  const cancelledRef = useRef(false);
+  const updatedAtRef = useRef<Date | null>(null);
+  updatedAtRef.current = updatedAt;
+
+  const load = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const rows = await api.live.matches();
+      if (cancelledRef.current) return;
+      setMatches(rows);
+      setUpdatedAt(new Date());
+      setErr(null);
+    } catch (e) {
+      if (!cancelledRef.current) setErr(String(e));
+    } finally {
+      if (!cancelledRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    cancelledRef.current = false;
+    load();
+
+    let intervalId: number | null = null;
+    const startInterval = () => {
+      if (intervalId == null) {
+        intervalId = window.setInterval(load, REFRESH_MS);
+      }
+    };
+    const stopInterval = () => {
+      if (intervalId != null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        stopInterval();
+      } else {
+        // Si données vieilles, on rafraîchit immédiatement avant de relancer
+        const last = updatedAtRef.current;
+        if (!last || Date.now() - last.getTime() > STALE_AFTER_MS) {
+          load();
+        }
+        startInterval();
+      }
+    };
+
+    if (!document.hidden) startInterval();
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelledRef.current = true;
+      stopInterval();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [load]);
 
   const inProgress = useMemo(
     () => matches.filter((m) => m.status === "inprogress"),
@@ -44,14 +91,42 @@ export default function Live() {
 
   return (
     <>
-      <div className="page-head">
-        <h1>
-          <span className="live-dot" aria-hidden /> En direct
-        </h1>
-        <p className="sub">
-          {inProgress.length} match{inProgress.length > 1 ? "s" : ""} en cours
-          {updatedAt && ` — actualisé à ${updatedAt.toLocaleTimeString("fr-FR")}`}
-        </p>
+      <div className="page-head live-head">
+        <div>
+          <h1>
+            <span className="live-dot" aria-hidden /> En direct
+          </h1>
+          <p className="sub">
+            {inProgress.length} match{inProgress.length > 1 ? "s" : ""} en cours
+            {updatedAt && ` — actualisé à ${updatedAt.toLocaleTimeString("fr-FR")}`}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="refresh-btn"
+          onClick={load}
+          disabled={refreshing}
+          aria-label="Rafraîchir maintenant"
+          title="Rafraîchir maintenant"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            aria-hidden
+            className={refreshing ? "spin" : ""}
+          >
+            <path
+              d="M13.5 8a5.5 5.5 0 1 1-1.61-3.89M13.5 2.5v3h-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {refreshing ? "Actualisation…" : "Rafraîchir"}
+        </button>
       </div>
 
       {err && <p className="error">{err}</p>}

@@ -988,6 +988,44 @@ p { margin: 0 0 0.75rem; }
 }
 .nav-live { display: inline-flex; align-items: center; }
 
+.live-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.refresh-btn:hover:not(:disabled) {
+  border-color: var(--ball);
+  color: var(--ball);
+  background: var(--panel-hover);
+}
+.refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.refresh-btn .spin {
+  animation: refresh-spin 0.9s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes refresh-spin {
+  to { transform: rotate(360deg); }
+}
+
 .live-section { margin-top: 1.5rem; }
 .live-h2 {
   font-size: 0.95rem;
