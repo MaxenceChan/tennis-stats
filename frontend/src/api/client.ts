@@ -135,6 +135,9 @@ export type PlayerFullProfile = {
     tournament: string | null;
     result: string;
     opponent_id: number | null;
+    opponent_name: string | null;
+    opponent_country: string | null;
+    score: string | null;
   }>;
   year_end_rankings: Array<Record<string, unknown>>;
   major_recent_events: Array<{
@@ -143,5 +146,8 @@ export type PlayerFullProfile = {
     round: string | null;
     result: string;
     score: string | null;
+    opponent_id: number | null;
+    opponent_name: string | null;
+    opponent_country: string | null;
   }>;
 };

@@ -99,11 +99,15 @@ def player_profile(player_id: int, db: Session = Depends(get_db)):
             won = m.winner_id == player_id
             if won:
                 by_year[y]["titles"] += 1
+            opp = m.player2 if m.player1_id == player_id else m.player1
             titles_finals.append({
                 "year": y,
                 "tournament": m.tournament.name if m.tournament else None,
                 "result": "Champion" if won else "Finalist",
-                "opponent_id": m.loser_id if won else m.winner_id,
+                "opponent_id": opp.id if opp else None,
+                "opponent_name": opp.full_name if opp else None,
+                "opponent_country": opp.country if opp else None,
+                "score": m.score,
             })
 
     seasons = [
@@ -116,12 +120,16 @@ def player_profile(player_id: int, db: Session = Depends(get_db)):
     major_events = []
     for m in matches:
         if m.tournament and m.tournament.category in ("Grand Slam", "Masters 1000", "ATP Finals"):
+            opp = m.player2 if m.player1_id == player_id else m.player1
             major_events.append({
                 "tournament": m.tournament.name,
                 "year": m.tournament.year,
                 "round": m.round,
                 "result": "W" if m.winner_id == player_id else "L",
                 "score": m.score,
+                "opponent_id": opp.id if opp else None,
+                "opponent_name": opp.full_name if opp else None,
+                "opponent_country": opp.country if opp else None,
             })
 
     return PlayerFullProfile(

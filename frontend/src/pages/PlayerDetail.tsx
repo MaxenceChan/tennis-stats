@@ -155,18 +155,37 @@ export default function PlayerDetail() {
         <div className="table-wrap">
           <table className="data-table">
             <thead>
-              <tr><th>Année</th><th>Tournoi</th><th>Résultat</th></tr>
+              <tr>
+                <th style={{ width: 70 }}>Année</th>
+                <th>Tournoi</th>
+                <th style={{ width: 110 }}>Résultat</th>
+                <th>Adversaire</th>
+                <th>Score</th>
+              </tr>
             </thead>
             <tbody>
               {profile.recent_titles_finals.map((t, i) => (
                 <tr key={i}>
-                  <td>{t.year}</td>
+                  <td style={{ fontWeight: 600 }}>{t.year}</td>
                   <td>{t.tournament}</td>
-                  <td className={t.result === "Champion" ? "win" : ""}>{t.result}</td>
+                  <td className={t.result === "Champion" ? "win" : "loss"}>
+                    {t.result === "Champion" ? "Vainqueur" : "Finaliste"}
+                  </td>
+                  <td>
+                    {t.opponent_id ? (
+                      <Link to={`/players/${t.opponent_id}`} className="player-link">
+                        <span className="flag">{flagEmoji(t.opponent_country)}</span>
+                        {t.opponent_name}
+                      </Link>
+                    ) : <span style={{ color: "var(--faint)" }}>—</span>}
+                  </td>
+                  <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.88rem" }}>
+                    {t.score ?? "—"}
+                  </td>
                 </tr>
               ))}
               {profile.recent_titles_finals.length === 0 && (
-                <tr><td colSpan={3} className="empty">Aucun titre ou finale.</td></tr>
+                <tr><td colSpan={5} className="empty">Aucun titre ou finale.</td></tr>
               )}
             </tbody>
           </table>
@@ -177,25 +196,36 @@ export default function PlayerDetail() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Année</th>
+                <th style={{ width: 70 }}>Année</th>
                 <th>Tournoi</th>
-                <th>Tour</th>
-                <th>Résultat</th>
+                <th style={{ width: 60 }}>Tour</th>
+                <th style={{ width: 90 }}>Résultat</th>
+                <th>Adversaire</th>
                 <th>Score</th>
               </tr>
             </thead>
             <tbody>
               {profile.major_recent_events.map((e, i) => (
                 <tr key={i}>
-                  <td>{e.year}</td>
+                  <td style={{ fontWeight: 600 }}>{e.year}</td>
                   <td>{e.tournament}</td>
-                  <td style={{ color: "var(--muted)" }}>{e.round ?? "—"}</td>
+                  <td style={{ color: "var(--muted)", fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>
+                    {e.round ?? "—"}
+                  </td>
                   <td className={e.result === "W" ? "win" : "loss"}>{e.result === "W" ? "Victoire" : "Défaite"}</td>
+                  <td>
+                    {e.opponent_id ? (
+                      <Link to={`/players/${e.opponent_id}`} className="player-link">
+                        <span className="flag">{flagEmoji(e.opponent_country)}</span>
+                        {e.opponent_name}
+                      </Link>
+                    ) : <span style={{ color: "var(--faint)" }}>—</span>}
+                  </td>
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.88rem" }}>{e.score ?? "—"}</td>
                 </tr>
               ))}
               {profile.major_recent_events.length === 0 && (
-                <tr><td colSpan={5} className="empty">Aucun match récent en Grand Chelem / Masters.</td></tr>
+                <tr><td colSpan={6} className="empty">Aucun match récent en Grand Chelem / Masters.</td></tr>
               )}
             </tbody>
           </table>
