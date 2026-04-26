@@ -3,20 +3,22 @@ import { api, type LiveMatch } from "../api/client";
 import { flagEmoji } from "../lib/flag";
 import { surfaceChipClass, surfaceLabel } from "../lib/surface";
 
-const REFRESH_MS = 60_000;
-// Si la dernière maj date d'avant ce seuil, on rafraîchit au retour de l'onglet.
-const STALE_AFTER_MS = 30_000;
+// Pas d'auto-refresh : 1 requête API = 1 clic sur le bouton.
+// Quota RapidAPI = 60 req/mois, on garde le contrôle total.
 
 export default function Live() {
   const [matches, setMatches] = useState<LiveMatch[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   const cancelledRef = useRef(false);
-  const updatedAtRef = useRef<Date | null>(null);
-  updatedAtRef.current = updatedAt;
+
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => { cancelledRef.current = true; };
+  }, []);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -26,55 +28,16 @@ export default function Live() {
       setMatches(rows);
       setUpdatedAt(new Date());
       setErr(null);
+      setHasFetched(true);
     } catch (e) {
-      if (!cancelledRef.current) setErr(String(e));
-    } finally {
       if (!cancelledRef.current) {
-        setLoading(false);
-        setRefreshing(false);
+        setErr(String(e));
+        setHasFetched(true);
       }
+    } finally {
+      if (!cancelledRef.current) setRefreshing(false);
     }
   }, []);
-
-  useEffect(() => {
-    cancelledRef.current = false;
-    load();
-
-    let intervalId: number | null = null;
-    const startInterval = () => {
-      if (intervalId == null) {
-        intervalId = window.setInterval(load, REFRESH_MS);
-      }
-    };
-    const stopInterval = () => {
-      if (intervalId != null) {
-        window.clearInterval(intervalId);
-        intervalId = null;
-      }
-    };
-
-    const onVisibility = () => {
-      if (document.hidden) {
-        stopInterval();
-      } else {
-        // Si données vieilles, on rafraîchit immédiatement avant de relancer
-        const last = updatedAtRef.current;
-        if (!last || Date.now() - last.getTime() > STALE_AFTER_MS) {
-          load();
-        }
-        startInterval();
-      }
-    };
-
-    if (!document.hidden) startInterval();
-    document.addEventListener("visibilitychange", onVisibility);
-
-    return () => {
-      cancelledRef.current = true;
-      stopInterval();
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [load]);
 
   const inProgress = useMemo(
     () => matches.filter((m) => m.status === "inprogress"),
@@ -97,8 +60,9 @@ export default function Live() {
             <span className="live-dot" aria-hidden /> En direct
           </h1>
           <p className="sub">
-            {inProgress.length} match{inProgress.length > 1 ? "s" : ""} en cours
-            {updatedAt && ` — actualisé à ${updatedAt.toLocaleTimeString("fr-FR")}`}
+            {hasFetched
+              ? <>{inProgress.length} match{inProgress.length > 1 ? "s" : ""} en cours{updatedAt && ` — actualisé à ${updatedAt.toLocaleTimeString("fr-FR")}`}</>
+              : <>Données live à la demande — clique sur <strong>Rafraîchir</strong> pour charger.</>}
           </p>
         </div>
         <button
@@ -130,9 +94,21 @@ export default function Live() {
       </div>
 
       {err && <p className="error">{err}</p>}
-      {loading && <p className="empty">Chargement…</p>}
 
-      {!loading && inProgress.length > 0 && (
+      {!hasFetched && !err && (
+        <div className="live-empty">
+          <span className="live-empty-icon" aria-hidden>🎾</span>
+          <p>
+            Aucune donnée chargée pour l'instant.<br />
+            Clique sur <strong>Rafraîchir</strong> en haut à droite pour récupérer les matchs en direct.
+          </p>
+          <p className="live-empty-note">
+            Quota API limité — chaque clic = 1 requête (cache serveur 60s).
+          </p>
+        </div>
+      )}
+
+      {hasFetched && inProgress.length > 0 && (
         <section className="live-section">
           <h2 className="live-h2">En cours</h2>
           <div className="live-grid">
@@ -141,7 +117,7 @@ export default function Live() {
         </section>
       )}
 
-      {!loading && upcoming.length > 0 && (
+      {hasFetched && upcoming.length > 0 && (
         <section className="live-section">
           <h2 className="live-h2">À venir</h2>
           <div className="live-grid">
@@ -150,7 +126,7 @@ export default function Live() {
         </section>
       )}
 
-      {!loading && finished.length > 0 && (
+      {hasFetched && finished.length > 0 && (
         <section className="live-section">
           <h2 className="live-h2">Terminés (récents)</h2>
           <div className="live-grid">
@@ -159,7 +135,7 @@ export default function Live() {
         </section>
       )}
 
-      {!loading && matches.length === 0 && !err && (
+      {hasFetched && matches.length === 0 && !err && (
         <p className="empty">Aucun match disponible pour le moment.</p>
       )}
     </>

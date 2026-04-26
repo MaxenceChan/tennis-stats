@@ -1026,6 +1026,30 @@ p { margin: 0 0 0.75rem; }
   to { transform: rotate(360deg); }
 }
 
+.live-empty {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  background: var(--panel);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  margin-top: 1.5rem;
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+.live-empty p { margin: 0.5rem 0; }
+.live-empty-icon {
+  display: block;
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  filter: grayscale(0.2);
+}
+.live-empty strong { color: var(--ball); font-weight: 600; }
+.live-empty-note {
+  margin-top: 1rem !important;
+  font-size: 0.8rem;
+  color: var(--faint);
+}
+
 .live-section { margin-top: 1.5rem; }
 .live-h2 {
   font-size: 0.95rem;
