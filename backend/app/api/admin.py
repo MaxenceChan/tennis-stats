@@ -66,9 +66,17 @@ async def ingest_matches(bg: BackgroundTasks, top_n: int = 100, concurrency: int
 
 
 @router.post("/elo/recompute")
-def elo_recompute(db: Session = Depends(get_db)):
-    counts = elo.recompute_elo(db, surfaces=("all", "Hard", "Clay", "Grass"))
-    return {"status": "done", "counts": counts}
+def elo_recompute(bg: BackgroundTasks):
+    """Schedule Elo recompute (4 surfaces) in background — returns immediately
+    to avoid Render's 30s request timeout (502)."""
+    def _run():
+        db = SessionLocal()
+        try:
+            elo.recompute_elo(db, surfaces=("all", "Hard", "Clay", "Grass"))
+        finally:
+            db.close()
+    bg.add_task(_run)
+    return {"status": "scheduled", "surfaces": ["all", "Hard", "Clay", "Grass"]}
 
 
 # ---------------------------- IMPORT endpoints (GH Actions push) ---------------

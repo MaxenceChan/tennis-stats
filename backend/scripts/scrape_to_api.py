@@ -407,12 +407,13 @@ async def probe(client: httpx.AsyncClient) -> None:
 # ---------------------------- Elo recompute ------------------------------------
 
 async def trigger_elo_recompute(client: httpx.AsyncClient) -> None:
-    log.info("POST /api/admin/elo/recompute ...")
+    log.info("POST /api/admin/elo/recompute (background task) ...")
     url = f"{_api_base()}/api/admin/elo/recompute"
     r = await client.post(url, headers=_auth_headers(),
-                          timeout=httpx.Timeout(120.0, connect=15.0))
+                          timeout=httpx.Timeout(30.0, connect=15.0))
     r.raise_for_status()
-    log.info("  -> %s", r.json())
+    log.info("  -> %s (job runs in background on Render, may take a few minutes)",
+             r.json())
 
 
 # ---------------------------- CLI ---------------------------------------------
