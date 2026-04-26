@@ -4,7 +4,7 @@ import { api, type MatchRead, type PlayerFullProfile } from "../api/client";
 import { flagEmoji } from "../lib/flag";
 import { surfaceChipClass, surfaceLabel } from "../lib/surface";
 
-type Tab = "summary" | "all" | "seasons" | "titles" | "events";
+type Tab = "summary" | "surfaces" | "all" | "seasons" | "titles" | "events";
 
 const SLAMS: { key: string; label: string; aliases: string[] }[] = [
   { key: "ao",  label: "Australian Open", aliases: ["australian open"] },
@@ -111,14 +111,16 @@ export default function PlayerDetail() {
       </header>
 
       <nav className="tabs" role="tablist">
-        <Tab id="summary" current={tab} set={setTab}>Résumé</Tab>
-        <Tab id="all"     current={tab} set={setTab}>Tous les matchs</Tab>
-        <Tab id="seasons" current={tab} set={setTab}>Saisons</Tab>
-        <Tab id="titles"  current={tab} set={setTab}>Titres & finales</Tab>
-        <Tab id="events"  current={tab} set={setTab}>Grands tournois</Tab>
+        <Tab id="summary"  current={tab} set={setTab}>Résumé</Tab>
+        <Tab id="surfaces" current={tab} set={setTab}>Stats par surface</Tab>
+        <Tab id="all"      current={tab} set={setTab}>Tous les matchs</Tab>
+        <Tab id="seasons"  current={tab} set={setTab}>Saisons</Tab>
+        <Tab id="titles"   current={tab} set={setTab}>Titres & finales</Tab>
+        <Tab id="events"   current={tab} set={setTab}>Grands tournois</Tab>
       </nav>
 
-      {tab === "summary" && <Summary profile={profile} />}
+      {tab === "summary"  && <Summary profile={profile} />}
+      {tab === "surfaces" && <SurfaceStats profile={profile} />}
       {tab === "all"    && <MatchTable matches={profile.all_results} viewpointId={p.id} />}
       {tab === "seasons" && (
         <div className="table-wrap">
@@ -275,36 +277,6 @@ function Summary({ profile }: { profile: PlayerFullProfile }) {
     });
   }, [profile, pid]);
 
-  // Surface stats — all-time totals + breakdown per year
-  const surfaceStats = useMemo(() => {
-    const SURFS = ["Hard", "Clay", "Grass", "Carpet"] as const;
-    type S = typeof SURFS[number];
-
-    type Bucket = { matches: number; wins: number; losses: number; titles: number };
-    const empty = (): Bucket => ({ matches: 0, wins: 0, losses: 0, titles: 0 });
-
-    const totals: Record<S, Bucket> = { Hard: empty(), Clay: empty(), Grass: empty(), Carpet: empty() };
-    const byYear = new Map<number, Record<S, Bucket>>();
-
-    for (const m of profile.all_results) {
-      const surf = m.tournament.surface as S | null;
-      if (!surf || !SURFS.includes(surf)) continue;
-      const year = m.tournament.year;
-      if (!byYear.has(year)) {
-        byYear.set(year, { Hard: empty(), Clay: empty(), Grass: empty(), Carpet: empty() });
-      }
-      const yb = byYear.get(year)![surf];
-      const tb = totals[surf];
-      yb.matches++; tb.matches++;
-      if (m.winner_id === pid) { yb.wins++; tb.wins++; }
-      else if (m.loser_id === pid) { yb.losses++; tb.losses++; }
-      if (m.round === "F" && m.winner_id === pid) { yb.titles++; tb.titles++; }
-    }
-
-    const years = Array.from(byYear.keys()).sort((a, b) => b - a);
-    return { totals, byYear, years };
-  }, [profile, pid]);
-
   // Year-end rank progression: for each year, the rank from the latest match of that year
   // where this player has a known rank.
   const rankSeries = useMemo(() => {
@@ -371,11 +343,69 @@ function Summary({ profile }: { profile: PlayerFullProfile }) {
         </div>
       </section>
 
-      {/* --- Stats par surface --- */}
+      {/* --- Rank progression chart --- */}
       <section className="summary-section">
-        <h2 className="summary-h2">Stats par surface</h2>
-        <SurfaceTotals totals={surfaceStats.totals} />
-        {surfaceStats.years.length > 0 && (
+        <h2 className="summary-h2">Progression classement ATP (fin d'année)</h2>
+        {rankSeries.length >= 2 ? (
+          <RankChart data={rankSeries} />
+        ) : (
+          <p className="empty">Pas assez de données de classement.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+type Bucket = { matches: number; wins: number; losses: number; titles: number };
+type SurfKey = "Hard" | "Clay" | "Grass" | "Carpet";
+const SURF_KEYS: SurfKey[] = ["Hard", "Clay", "Grass", "Carpet"];
+const emptyBucket = (): Bucket => ({ matches: 0, wins: 0, losses: 0, titles: 0 });
+
+function SurfaceStats({ profile }: { profile: PlayerFullProfile }) {
+  const pid = profile.player.id;
+
+  const data = useMemo(() => {
+    const totals: Record<SurfKey, Bucket> = {
+      Hard: emptyBucket(), Clay: emptyBucket(), Grass: emptyBucket(), Carpet: emptyBucket(),
+    };
+    const byYear = new Map<number, Record<SurfKey, Bucket>>();
+
+    for (const m of profile.all_results) {
+      const surf = m.tournament.surface as SurfKey | null;
+      if (!surf || !SURF_KEYS.includes(surf)) continue;
+      const year = m.tournament.year;
+      if (!byYear.has(year)) {
+        byYear.set(year, {
+          Hard: emptyBucket(), Clay: emptyBucket(), Grass: emptyBucket(), Carpet: emptyBucket(),
+        });
+      }
+      const yb = byYear.get(year)![surf];
+      const tb = totals[surf];
+      yb.matches++; tb.matches++;
+      if (m.winner_id === pid) { yb.wins++; tb.wins++; }
+      else if (m.loser_id === pid) { yb.losses++; tb.losses++; }
+      if (m.round === "F" && m.winner_id === pid) { yb.titles++; tb.titles++; }
+    }
+
+    const years = Array.from(byYear.keys()).sort((a, b) => b - a);
+    return { totals, byYear, years };
+  }, [profile, pid]);
+
+  const totalMatches = SURF_KEYS.reduce((a, k) => a + data.totals[k].matches, 0);
+  if (totalMatches === 0) {
+    return <p className="empty">Aucun match avec surface enregistrée.</p>;
+  }
+
+  return (
+    <div className="summary" style={{ marginTop: "1.25rem" }}>
+      <section className="summary-section">
+        <h2 className="summary-h2">Total carrière par surface</h2>
+        <SurfaceTotals totals={data.totals} />
+      </section>
+
+      {data.years.length > 0 && (
+        <section className="summary-section">
+          <h2 className="summary-h2">Par année</h2>
           <div className="table-wrap">
             <table className="data-table surface-stats-table">
               <thead>
@@ -394,8 +424,8 @@ function Summary({ profile }: { profile: PlayerFullProfile }) {
                 </tr>
               </thead>
               <tbody>
-                {surfaceStats.years.map((y) => {
-                  const row = surfaceStats.byYear.get(y)!;
+                {data.years.map((y) => {
+                  const row = data.byYear.get(y)!;
                   return (
                     <tr key={y}>
                       <td style={{ fontWeight: 600 }}>{y}</td>
@@ -409,23 +439,11 @@ function Summary({ profile }: { profile: PlayerFullProfile }) {
               </tbody>
             </table>
           </div>
-        )}
-      </section>
-
-      {/* --- Rank progression chart --- */}
-      <section className="summary-section">
-        <h2 className="summary-h2">Progression classement ATP (fin d'année)</h2>
-        {rankSeries.length >= 2 ? (
-          <RankChart data={rankSeries} />
-        ) : (
-          <p className="empty">Pas assez de données de classement.</p>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }
-
-type Bucket = { matches: number; wins: number; losses: number; titles: number };
 
 function SurfaceTotals({ totals }: {
   totals: Record<"Hard" | "Clay" | "Grass" | "Carpet", Bucket>;
