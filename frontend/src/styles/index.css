@@ -847,11 +847,22 @@ p { margin: 0 0 0.75rem; }
   line-height: 1;
 }
 .slam-card.champion .slam-round { color: var(--ball); }
-.slam-year {
+.slam-round.muted { color: var(--faint); }
+.slam-round-suffix {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 0.25rem;
+  letter-spacing: 0;
+}
+.slam-card.champion .slam-round-suffix { color: var(--ball-soft); }
+.slam-year, .slam-years {
   font-family: var(--font-mono);
   font-size: 0.78rem;
   color: var(--faint);
+  line-height: 1.4;
 }
+.slam-card.champion .slam-years { color: var(--text-soft); }
 
 /* --- Rank progression chart --- */
 .chart-wrap {

@@ -234,48 +234,44 @@ function Summary({ profile }: { profile: PlayerFullProfile }) {
     return { titles, finals, wins, losses, winPct };
   }, [profile]);
 
-  // Best round at most-recent edition of each Grand Slam
+  // For each Grand Slam:
+  //   - if won at least once → titles count + list of years won
+  //   - otherwise → best all-time round reached + year achieved
   const slamPerf = useMemo(() => {
     return SLAMS.map((slam) => {
       const slamMatches = profile.all_results.filter((m) => {
         const name = (m.tournament.name ?? "").toLowerCase();
         return slam.aliases.some((a) => name.includes(a));
       });
-      if (!slamMatches.length) return { ...slam, year: null, round: null, won: false };
-      // group by year, keep the most recent
-      const byYear = new Map<number, MatchRead[]>();
-      for (const m of slamMatches) {
-        const y = m.tournament.year;
-        if (!byYear.has(y)) byYear.set(y, []);
-        byYear.get(y)!.push(m);
+      if (!slamMatches.length) {
+        return { ...slam, titles: 0, titleYears: [] as number[], bestRound: null as string | null, bestYear: null as number | null };
       }
-      const latestYear = Math.max(...byYear.keys());
-      const ms = byYear.get(latestYear)!;
-      // best round reached: max ROUND_RANK; if final and player won → "W"
-      let bestRound: string | null = null;
+
+      // Titles: finals where player won, by year
+      const titleYears: number[] = [];
+      for (const m of slamMatches) {
+        if (m.round === "F" && m.winner_id === pid) titleYears.push(m.tournament.year);
+      }
+      titleYears.sort((a, b) => b - a);
+
+      if (titleYears.length > 0) {
+        return { ...slam, titles: titleYears.length, titleYears, bestRound: "W", bestYear: titleYears[0] };
+      }
+
+      // Otherwise best all-time round (lost in this round = furthest reached)
       let bestRank = -1;
-      let won = false;
-      for (const m of ms) {
+      let bestRound: string | null = null;
+      let bestYear: number | null = null;
+      for (const m of slamMatches) {
         const r = m.round ?? "";
         const rank = ROUND_RANK[r] ?? 0;
         if (rank > bestRank) {
           bestRank = rank;
           bestRound = r;
-          won = false;
+          bestYear = m.tournament.year;
         }
       }
-      // if best round is "F" and player won → champion
-      if (bestRound === "F") {
-        const finalMatch = ms.find((m) => m.round === "F");
-        if (finalMatch && finalMatch.winner_id === pid) {
-          bestRound = "W";
-          won = true;
-        }
-      } else {
-        // they LOST in bestRound (i.e. eliminated there)
-        won = false;
-      }
-      return { ...slam, year: latestYear, round: bestRound, won };
+      return { ...slam, titles: 0, titleYears: [], bestRound, bestYear };
     });
   }, [profile, pid]);
 
@@ -310,17 +306,38 @@ function Summary({ profile }: { profile: PlayerFullProfile }) {
 
       {/* --- Grand Slam performance --- */}
       <section className="summary-section">
-        <h2 className="summary-h2">Grand Chelem — dernière édition</h2>
+        <h2 className="summary-h2">Grands Chelems</h2>
         <div className="slams-grid">
-          {slamPerf.map((s) => (
-            <div key={s.key} className={`slam-card ${s.won ? "champion" : ""}`}>
-              <div className="slam-name">{s.label}</div>
-              <div className="slam-round">
-                {s.round ? (ROUND_LABEL[s.round] ?? s.round) : "—"}
+          {slamPerf.map((s) => {
+            const isChampion = s.titles > 0;
+            return (
+              <div key={s.key} className={`slam-card ${isChampion ? "champion" : ""}`}>
+                <div className="slam-name">{s.label}</div>
+                {isChampion ? (
+                  <>
+                    <div className="slam-round">
+                      {s.titles}<span className="slam-round-suffix">{s.titles > 1 ? " titres" : " titre"}</span>
+                    </div>
+                    <div className="slam-years">
+                      {s.titleYears.join(" · ")}
+                    </div>
+                  </>
+                ) : s.bestRound ? (
+                  <>
+                    <div className="slam-round">
+                      {ROUND_LABEL[s.bestRound] ?? s.bestRound}
+                    </div>
+                    <div className="slam-year">Meilleur — {s.bestYear}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="slam-round muted">—</div>
+                    <div className="slam-year">Aucune participation</div>
+                  </>
+                )}
               </div>
-              <div className="slam-year">{s.year ?? "Aucune participation"}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
