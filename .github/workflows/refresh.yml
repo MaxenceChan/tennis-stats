@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "probe | sackmann | sackmann-players | sackmann-rankings | sackmann-matches | bdl | bdl-rankings | bdl-tournaments | full"
+        description: "probe | sackmann | sackmann-players | sackmann-rankings | sackmann-matches | bdl | bdl-rankings | bdl-tournaments | elo | full"
         required: true
         default: bdl
       years:

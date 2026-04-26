@@ -67,7 +67,7 @@ async def ingest_matches(bg: BackgroundTasks, top_n: int = 100, concurrency: int
 
 @router.post("/elo/recompute")
 def elo_recompute(db: Session = Depends(get_db)):
-    counts = elo.recompute_elo(db)
+    counts = elo.recompute_elo(db, surfaces=("all", "Hard", "Clay", "Grass"))
     return {"status": "done", "counts": counts}
 
 
