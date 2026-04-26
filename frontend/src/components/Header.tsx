@@ -31,6 +31,9 @@ export default function Header() {
           )}
         </div>
         <NavLink to="/calendar">Calendrier</NavLink>
+        <NavLink to="/live" className="nav-live">
+          <span className="live-dot" aria-hidden /> En direct
+        </NavLink>
         <NavLink to="/players">Fiche joueur</NavLink>
       </nav>
     </header>

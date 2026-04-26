@@ -34,6 +34,10 @@ export const api = {
     const s = qs.toString();
     return request<TournamentWithWinner[]>(`/calendar${s ? `?${s}` : ""}`);
   },
+  live: {
+    matches: () => request<LiveMatch[]>(`/live/matches`),
+    rankings: (limit = 100) => request<LiveRankingRow[]>(`/live/rankings?limit=${limit}`),
+  },
 };
 
 // ---------------- types --------------------
@@ -123,6 +127,48 @@ export type SeasonRow = {
   titles: number;
   finals: number;
   year_end_rank?: number | null;
+};
+
+export type LiveRankingRow = {
+  rank: number;
+  previous_rank: number | null;
+  player_name: string;
+  country: string | null;
+  points: number | null;
+  tournaments_played: number | null;
+};
+
+export type LiveSetScore = {
+  set_number: number;
+  home: number | null;
+  away: number | null;
+  home_tiebreak: number | null;
+  away_tiebreak: number | null;
+};
+
+export type LivePlayer = {
+  name: string;
+  country: string | null;
+  ranking: number | null;
+};
+
+export type LiveMatch = {
+  id: number;
+  status: string;
+  home: LivePlayer;
+  away: LivePlayer;
+  home_score_current: number | null;
+  away_score_current: number | null;
+  home_point: string | null;
+  away_point: string | null;
+  sets: LiveSetScore[];
+  winner_code: number | null;
+  server_code: number | null;
+  start_timestamp: number | null;
+  tournament_name: string | null;
+  tournament_category: string | null;
+  surface: string | null;
+  round_name: string | null;
 };
 
 export type PlayerFullProfile = {

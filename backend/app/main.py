@@ -8,6 +8,7 @@ from app.api import calendar as calendar_api
 from app.api import players as players_api
 from app.api import rankings as rankings_api
 from app.api import admin as admin_api
+from app.api import live as live_api
 from app.config import get_settings
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 
@@ -42,6 +43,7 @@ app.include_router(rankings_api.router, prefix=api_prefix)
 app.include_router(players_api.router, prefix=api_prefix)
 app.include_router(calendar_api.router, prefix=api_prefix)
 app.include_router(admin_api.router, prefix=api_prefix)
+app.include_router(live_api.router, prefix=api_prefix)
 
 
 @app.get("/health", tags=["meta"])

@@ -5,6 +5,7 @@ import RankingsAtp from "./pages/RankingsAtp";
 import RankingsRace from "./pages/RankingsRace";
 import RankingsElo from "./pages/RankingsElo";
 import Calendar from "./pages/Calendar";
+import Live from "./pages/Live";
 import PlayerSearch from "./pages/PlayerSearch";
 import PlayerDetail from "./pages/PlayerDetail";
 import NotFound from "./pages/NotFound";
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/rankings/race" element={<RankingsRace />} />
           <Route path="/rankings/elo" element={<RankingsElo />} />
           <Route path="/calendar" element={<Calendar />} />
+          <Route path="/live" element={<Live />} />
           <Route path="/players" element={<PlayerSearch />} />
           <Route path="/players/:playerId" element={<PlayerDetail />} />
           <Route path="*" element={<NotFound />} />
