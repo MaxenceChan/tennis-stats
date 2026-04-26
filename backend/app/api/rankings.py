@@ -11,9 +11,11 @@ router = APIRouter(prefix="/rankings", tags=["rankings"])
 
 @router.get("/atp", response_model=list[RankingRow])
 def atp_ranking(limit: int = Query(100, le=1000), db: Session = Depends(get_db)):
+    # Only players present in BallDontLie's current ranking feed (active tour players),
+    # to avoid retired players still carrying an old Sackmann atp_rank.
     rows = db.scalars(
         select(Player)
-        .where(Player.atp_rank.is_not(None))
+        .where(Player.atp_rank.is_not(None), Player.bdl_id.is_not(None))
         .order_by(asc(Player.atp_rank))
         .limit(limit)
     ).all()
@@ -28,7 +30,7 @@ def atp_ranking(limit: int = Query(100, le=1000), db: Session = Depends(get_db))
 def race_ranking(limit: int = Query(100, le=1000), db: Session = Depends(get_db)):
     rows = db.scalars(
         select(Player)
-        .where(Player.race_rank.is_not(None))
+        .where(Player.race_rank.is_not(None), Player.bdl_id.is_not(None))
         .order_by(asc(Player.race_rank))
         .limit(limit)
     ).all()
